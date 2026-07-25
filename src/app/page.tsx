@@ -16,7 +16,7 @@ export default async function FlashcardsDashboardPage() {
   // Get current streak and check onboarding status
   let { data: profile } = await supabase
     .from('user_settings')
-    .select('current_streak')
+    .select('current_streak, last_study_date')
     .eq('id', user.id)
     .maybeSingle()
     
@@ -27,6 +27,7 @@ export default async function FlashcardsDashboardPage() {
       .insert({
         id: user.id,
         daily_card_limit: 50,
+        daily_subjects_goal: 2,
         streak_freezes: 0,
         current_streak: 0,
         updated_at: new Date().toISOString()
@@ -37,11 +38,15 @@ export default async function FlashcardsDashboardPage() {
     if (!insertError && newProfile) {
       profile = newProfile
     } else {
-      profile = { current_streak: 0 } // Fallback so dashboard doesn't crash
+      profile = { current_streak: 0, last_study_date: null } // Fallback so dashboard doesn't crash
     }
   }
 
   let currentStreak = profile?.current_streak || 0
+  
+  // Verify if they studied today (Malaysia Time)
+  const todayKey = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kuala_Lumpur' }).format(new Date())
+  const hasStudiedToday = profile?.last_study_date === todayKey
 
   return (
     <div className="min-h-screen bg-[#0A0A0A] p-6 pb-24 relative">
@@ -52,9 +57,9 @@ export default async function FlashcardsDashboardPage() {
           <p className="text-[#a1a1aa] text-sm mt-1">Master your SPM subjects</p>
         </div>
         <div className="flex items-center gap-4 sm:gap-6">
-          <div className={`flex items-center gap-2 px-4 py-2 rounded-full border shadow-sm ${currentStreak > 0 ? 'bg-[#ff9500]/10 border-[#ff9500]/20 shadow-[0_0_15px_rgba(255,149,0,0.1)]' : 'bg-[#262626]/50 border-[#3f3f46]'}`}>
-            <Flame className={`w-5 h-5 ${currentStreak > 0 ? 'text-[#ff9500]' : 'text-[#71717a]'}`} />
-            <span className={`font-bold text-sm sm:text-base ${currentStreak > 0 ? 'text-[#ff9500]' : 'text-[#71717a]'}`}>
+          <div className={`flex items-center gap-2 px-4 py-2 rounded-full border shadow-sm ${hasStudiedToday && currentStreak > 0 ? 'bg-[#ff9500]/10 border-[#ff9500]/20 shadow-[0_0_15px_rgba(255,149,0,0.1)]' : 'bg-[#262626]/50 border-[#3f3f46]'}`}>
+            <Flame className={`w-5 h-5 ${hasStudiedToday && currentStreak > 0 ? 'text-[#ff9500]' : 'text-[#71717a]'}`} />
+            <span className={`font-bold text-sm sm:text-base ${hasStudiedToday && currentStreak > 0 ? 'text-[#ff9500]' : 'text-[#71717a]'}`}>
               {currentStreak} Day Streak
             </span>
           </div>
