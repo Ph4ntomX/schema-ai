@@ -350,6 +350,10 @@ export function MasteryDashboard({ userId }: { userId: string }) {
               <span className="text-sm font-bold px-3 py-1 rounded-full bg-[#262626] text-[#a1a1aa]">
                 Study below to unlock
               </span>
+            ) : isSyncing ? (
+              <span className="text-sm font-bold px-3 py-1 rounded-full bg-[#262626] text-[#a1a1aa] flex items-center gap-2 w-fit">
+                <Loader2 className="w-3 h-3 animate-spin" /> Syncing...
+              </span>
             ) : (
               <span className={`text-sm font-bold px-3 py-1 rounded-full ${Math.min(dailyDueCount, Math.max(0, dailyLimit - cardsReviewedToday)) === 0 ? 'bg-green-500/20 text-green-400' : 'bg-[#ff9500]/20 text-[#ff9500]'}`}>
                 {Math.min(dailyDueCount, Math.max(0, dailyLimit - cardsReviewedToday)) === 0 ? `🎉 Replenishes in ${timeUntilRestock}` : `${Math.min(dailyDueCount, Math.max(0, dailyLimit - cardsReviewedToday))} Cards Due`}
@@ -372,9 +376,15 @@ export function MasteryDashboard({ userId }: { userId: string }) {
                   <span className="text-lg">{subject}</span>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="bg-[#ff9500]/20 text-[#ff9500] px-3 py-1 rounded-full text-sm">
-                    {Math.min(count, Math.max(0, dailyLimit - cardsReviewedToday))} Due
-                  </span>
+                  {isSyncing ? (
+                    <span className="bg-[#262626] text-[#a1a1aa] px-3 py-1 rounded-full text-sm">
+                      <Loader2 className="w-3 h-3 animate-spin inline-block mr-1" /> Syncing...
+                    </span>
+                  ) : (
+                    <span className="bg-[#ff9500]/20 text-[#ff9500] px-3 py-1 rounded-full text-sm">
+                      {Math.min(count, Math.max(0, dailyLimit - cardsReviewedToday))} Due
+                    </span>
+                  )}
                 </div>
               </button>
             ))}
