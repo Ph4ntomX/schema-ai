@@ -14,6 +14,12 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "spm-cards.ai",
   description: "Flashcards for SPM. Activate your streak and actively recall information everyday!",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "SPM Cards",
+  },
 };
 
 import { SyncProvider } from '@/components/SyncProvider'

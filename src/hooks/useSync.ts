@@ -24,7 +24,7 @@ export function useSync() {
         // Clear the synced items from the queue
         const itemIds = items.map(item => item.id as number)
         await db.sync_queue.bulkDelete(itemIds)
-        console.log(`Successfully synced ${items.length} items to schema.ai server.`)
+        console.log(`Successfully synced ${items.length} items to spm-cards.ai server.`)
       } else {
         const errorData = await response.json()
         console.error('Failed to sync offline data to server:', errorData)

@@ -48,7 +48,7 @@ export default async function FlashcardsDashboardPage() {
       {/* Header */}
       <header className="max-w-4xl mx-auto flex flex-col md:flex-row items-center justify-between py-6 px-6 gap-4">
         <div className="text-center md:text-left">
-          <h1 className="text-3xl font-black text-white tracking-tighter">schema<span className="text-blue-500">.ai</span></h1>
+          <h1 className="text-3xl font-black text-white tracking-tighter">spm-cards<span className="text-blue-500">.ai</span></h1>
           <p className="text-[#a1a1aa] text-sm mt-1">Master your SPM subjects</p>
         </div>
         <div className="flex items-center gap-4 sm:gap-6">
