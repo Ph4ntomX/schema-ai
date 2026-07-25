@@ -45,17 +45,21 @@ export async function POST(request: Request) {
       let repetitions = progress?.repetitions ?? 0
       
       if (payload.rating === 'wrong') {
-        ease_factor = Math.max(ease_factor - 0.2, 1.3)
+        ease_factor = Math.max(1.3, ease_factor - 0.2)
         interval = 0
         repetitions = 0
+      } else if (payload.rating === 'easy') {
+        ease_factor += 0.15
+        if (interval === 0) {
+          interval = 4
+        } else {
+          interval = Math.round(interval * ease_factor * 1.3)
+        }
+        repetitions += 1
       } else if (payload.rating === 'right') {
-        ease_factor = Math.min(ease_factor + 0.1, 3.0)
-        
-        if (repetitions === 0) {
+        if (interval === 0) {
           interval = 1
-        } else if (repetitions === 1) {
-          interval = 1
-        } else if (repetitions === 2) {
+        } else if (interval === 1) {
           interval = 6
         } else {
           interval = Math.round(interval * ease_factor)
