@@ -187,8 +187,65 @@ export function MasteryDashboard({ userId }: { userId: string }) {
     }
   }, [])
 
+  // Pull to Refresh State
+  const [startY, setStartY] = useState(0)
+  const [pullDistance, setPullDistance] = useState(0)
+  const [isPulling, setIsPulling] = useState(false)
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (window.scrollY <= 0) {
+      setStartY(e.touches[0].clientY)
+      setIsPulling(true)
+    }
+  }
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (isPulling && window.scrollY <= 0) {
+      const distance = e.touches[0].clientY - startY
+      if (distance > 0) {
+        setPullDistance(Math.min(distance, 120)) // Max pull distance visual
+      } else {
+        setPullDistance(0)
+      }
+    } else {
+      setIsPulling(false)
+      setPullDistance(0)
+    }
+  }
+
+  const handleTouchEnd = () => {
+    if (pullDistance > 80) {
+      handleSync(true) // Force sync if pulled far enough
+    }
+    setIsPulling(false)
+    setPullDistance(0)
+  }
+
   return (
-    <div className="flex flex-col gap-10 w-full">
+    <div 
+      className="flex flex-col gap-10 w-full"
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+    >
+      {/* PULL TO REFRESH INDICATOR */}
+      <div 
+        className="w-full flex justify-center overflow-hidden pointer-events-none"
+        style={{ 
+          height: isSyncing ? '60px' : `${pullDistance}px`,
+          opacity: isSyncing ? 1 : pullDistance / 100,
+          transition: isPulling ? 'none' : 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)' 
+        }}
+      >
+        <div className="mt-2 bg-[#202020] border border-[#262626] rounded-full p-2 shadow-lg flex items-center justify-center">
+          <RefreshCw 
+            className={`w-6 h-6 text-blue-500 ${isSyncing ? 'animate-spin' : ''}`}
+            style={{ transform: isSyncing ? 'none' : `rotate(${pullDistance * 4}deg)` }}
+          />
+        </div>
+      </div>
+
+
       {/* PUSH NOTIFICATION PROMPT */}
       {showPushPrompt && (
         <section className="bg-gradient-to-r from-blue-500/10 to-[#171717] border border-blue-500/20 rounded-3xl p-6 flex flex-col md:flex-row items-center justify-between gap-6 shadow-xl relative overflow-hidden">
