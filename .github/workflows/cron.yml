@@ -14,4 +14,6 @@ jobs:
     steps:
       - name: Hit Vercel Cron Endpoint
         # Replace the URL below with your actual Vercel production URL once deployed
-        run: curl -X GET "https://spm-cards.vercel.app/api/cron/reminders" -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
+        run: |
+          curl -X GET "https://spm-cards.vercel.app/api/cron/reminders" \
+          -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"

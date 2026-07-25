@@ -37,6 +37,12 @@ export async function updateSession(request: NextRequest) {
     }
 
     const isAuthRoute = request.nextUrl.pathname.startsWith('/login') || request.nextUrl.pathname.startsWith('/auth')
+    const isCronRoute = request.nextUrl.pathname.startsWith('/api/cron')
+
+    // Allow cron jobs to bypass user auth
+    if (isCronRoute) {
+      return supabaseResponse
+    }
 
     // If logged out and not on an auth route, redirect to login
     if (!user && !isAuthRoute) {
