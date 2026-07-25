@@ -62,7 +62,7 @@ export async function queueAction(action: string, payload: any) {
     await db.sync_queue.add({
       action,
       payload,
-      timestamp: Date.now()
+      timestamp: new Date().toISOString()
     })
     console.log(`Queued action: ${action}`)
     

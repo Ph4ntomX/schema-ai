@@ -41,25 +41,25 @@ export default async function FlashcardsDashboardPage() {
     }
   }
 
-  let currentStreak = profile.current_streak || 0
+  let currentStreak = profile?.current_streak || 0
 
   return (
     <div className="min-h-screen bg-[#0A0A0A] p-6 pb-24 relative">
       {/* Header */}
-      <header className="max-w-4xl mx-auto flex items-center justify-between pt-6 pb-12">
-        <div>
-          <h1 className="text-3xl font-bold text-white tracking-tight">Study Dashboard</h1>
+      <header className="max-w-4xl mx-auto flex flex-col md:flex-row items-center justify-between py-6 px-6 gap-4">
+        <div className="text-center md:text-left">
+          <h1 className="text-3xl font-black text-white tracking-tighter">schema<span className="text-blue-500">.ai</span></h1>
           <p className="text-[#a1a1aa] text-sm mt-1">Master your SPM subjects</p>
         </div>
-        <div className="flex items-center gap-6">
+        <div className="flex items-center gap-4 sm:gap-6">
           <div className={`flex items-center gap-2 px-4 py-2 rounded-full border shadow-sm ${currentStreak > 0 ? 'bg-[#ff9500]/10 border-[#ff9500]/20 shadow-[0_0_15px_rgba(255,149,0,0.1)]' : 'bg-[#262626]/50 border-[#3f3f46]'}`}>
             <Flame className={`w-5 h-5 ${currentStreak > 0 ? 'text-[#ff9500]' : 'text-[#71717a]'}`} />
-            <span className={`font-bold ${currentStreak > 0 ? 'text-[#ff9500]' : 'text-[#71717a]'}`}>
+            <span className={`font-bold text-sm sm:text-base ${currentStreak > 0 ? 'text-[#ff9500]' : 'text-[#71717a]'}`}>
               {currentStreak} Day Streak
             </span>
           </div>
           <Link href="/settings" className="flex items-center gap-2 text-[#a1a1aa] hover:text-white transition-colors text-sm font-medium">
-            <Settings className="w-4 h-4" /> Settings
+            <Settings className="w-5 h-5" /> <span className="hidden sm:inline">Settings</span>
           </Link>
           <form action={logout}>
             <button className="flex items-center gap-2 text-[#a1a1aa] hover:text-white transition-colors text-sm font-medium">

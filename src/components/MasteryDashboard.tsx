@@ -61,22 +61,33 @@ export function MasteryDashboard({ userId }: { userId: string }) {
   }, [])
 
   const handleSync = async (silent = false) => {
-    if (!silent) setIsSyncing(true)
-    const res = await syncMasteryData()
-    if (res.error) {
-      toast.error('Sync failed: ' + res.error)
-    } else {
-      await db.transaction('rw', db.topics, db.subtopics, db.flashcards, db.user_card_progress, async () => {
-        await db.topics.bulkPut(res.topics)
-        await db.subtopics.bulkPut(res.subtopics)
-        await db.flashcards.bulkPut(res.flashcards)
-        
-        await db.user_card_progress.clear()
-        await db.user_card_progress.bulkPut(res.cardProgress)
-      })
-      if (!silent) toast.success('Database Synced')
+    if (!navigator.onLine) {
+      if (!silent) toast.error('You are offline. Showing cached local data.')
+      return
     }
-    setIsSyncing(false)
+
+    if (!silent) setIsSyncing(true)
+    try {
+      const res = await syncMasteryData()
+      if (res.error) {
+        if (!silent) toast.error('Sync failed: ' + res.error)
+      } else {
+        await db.transaction('rw', db.topics, db.subtopics, db.flashcards, db.user_card_progress, async () => {
+          await db.topics.bulkPut(res.topics || [])
+          await db.subtopics.bulkPut(res.subtopics || [])
+          await db.flashcards.bulkPut(res.flashcards || [])
+          
+          await db.user_card_progress.clear()
+          await db.user_card_progress.bulkPut(res.cardProgress || [])
+        })
+        if (!silent) toast.success('Database Synced')
+      }
+    } catch (err: any) {
+      console.warn('Offline or sync failed:', err)
+      if (!silent) toast.error('Network unreachable. Operating in offline mode.')
+    } finally {
+      setIsSyncing(false)
+    }
   }
 
   const handleResetProgress = async (subtopicId: string, e: React.MouseEvent) => {
