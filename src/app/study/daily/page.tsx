@@ -57,7 +57,7 @@ function DailyDeckContent() {
       for (const card of allCards) {
         const p = progressMap.get(card.id)
         if (!p) continue // Daily deck only contains cards they have seen in the Mastery Library at least once!
-        if (p.interval === 0) continue // Skip abandoned learning cards!
+        if (p.interval === 0 && p.repetitions === 0) continue // Skip abandoned NEW learning cards only! (Lapsed daily deck cards should stay in daily deck)
         if (p.next_review > now) continue // Skip future cards entirely
         
         const subtopic = subtopicMap.get(card.subtopic_id)

@@ -52,19 +52,22 @@ export function FlashcardReviewer({ initialQueue, onComplete, title = 'Mastery Q
     if (rating === 'wrong') {
       ease_factor = Math.max(ease_factor - 0.2, 1.3)
       interval = 0
-      repetitions = 0
+      // We intentionally do NOT reset repetitions to 0 here.
+      // This allows the Dashboard to mathematically distinguish between a lapsed old card (repetitions > 0)
+      // and a brand new abandoned Mastery card (repetitions === 0).
+      console.log('Lapsed card - retaining history:', repetitions)
     } else if (rating === 'right') {
       // Reward them with a slightly higher ease factor over time for consecutive right answers
       ease_factor = Math.min(ease_factor + 0.1, 3.0)
       
-      if (repetitions === 0) {
-        interval = 1 // 1 Day interval
-      } else if (repetitions === 1) {
+      if (interval === 0) {
+        // If it's in the learning phase (either a brand new card or a lapsed card), graduate it to 1 day!
         interval = 1
-      } else if (repetitions === 2) {
-        interval = 6
       } else {
-        interval = Math.round(interval * ease_factor)
+        if (repetitions === 0) interval = 1
+        else if (repetitions === 1) interval = 1
+        else if (repetitions === 2) interval = 6
+        else interval = Math.max(1, Math.round(interval * ease_factor))
       }
       repetitions += 1
     }

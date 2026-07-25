@@ -172,9 +172,15 @@ export function MasteryDashboard({ userId }: { userId: string }) {
 
     for (const progress of cardProgress) {
       if (progress.interval === 0) {
-        // Abandoned mid-learning
-        result.resumeCount++
-        continue
+        if (progress.repetitions === 0) {
+          // Pure abandoned mid-learning session of a brand new card
+          result.resumeCount++
+          continue
+        } else {
+          // This is a lapsed Daily Deck card! It should NOT go to Resume Learning.
+          // It should just fall through and act like a normal due card for the Daily Deck!
+          // We set its virtual 'next_review' to the past so it gets picked up below.
+        }
       }
       
       // Check if they reviewed it TODAY

@@ -15,8 +15,8 @@ export default function ResumeSessionPage() {
 
   useEffect(() => {
     async function loadSession() {
-      // Fetch all progress where interval === 0
-      const allProgress = await db.user_card_progress.filter(p => p.interval === 0).toArray()
+      // Fetch all progress where interval === 0 and repetitions === 0 (pure abandoned new cards)
+      const allProgress = await db.user_card_progress.filter(p => p.interval === 0 && p.repetitions === 0).toArray()
       
       if (allProgress.length === 0) {
         setIsLoading(false)
@@ -44,7 +44,8 @@ export default function ResumeSessionPage() {
   }, [])
 
   const handleComplete = async () => {
-    await incrementStreak()
+    // We intentionally do not increment the streak here for Resume sessions per user preference.
+    // The streak is reserved for Daily Deck and initial Mastery Library sessions.
   }
 
   if (isLoading) {

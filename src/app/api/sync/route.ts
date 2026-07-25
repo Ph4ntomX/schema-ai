@@ -47,14 +47,14 @@ export async function POST(request: Request) {
       if (payload.rating === 'wrong') {
         ease_factor = Math.max(1.3, ease_factor - 0.2)
         interval = 0
-        repetitions = 0
       } else if (payload.rating === 'right') {
         if (interval === 0) {
           interval = 1
-        } else if (interval === 1) {
-          interval = 6
         } else {
-          interval = Math.round(interval * ease_factor)
+          if (repetitions === 0) interval = 1
+          else if (repetitions === 1) interval = 1
+          else if (repetitions === 2) interval = 6
+          else interval = Math.max(1, Math.round(interval * ease_factor))
         }
         repetitions += 1
       }
