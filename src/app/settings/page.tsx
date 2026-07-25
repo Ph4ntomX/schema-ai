@@ -30,7 +30,11 @@ export default function SettingsPage() {
     try {
       const permission = await Notification.requestPermission()
       if (permission === 'granted') {
-        const registration = await navigator.serviceWorker.ready
+        const registration = await navigator.serviceWorker.getRegistration()
+        if (!registration) {
+          throw new Error('PWA Service Worker is not active! Please build and start the app for production.')
+        }
+
         const subscription = await registration.pushManager.subscribe({
           userVisibleOnly: true,
           applicationServerKey: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY

@@ -57,7 +57,7 @@ export function MasteryDashboard({ userId }: { userId: string }) {
 
   useEffect(() => {
     // Always trigger a visible background sync on mount
-    handleSync(false)
+    handleSync(true)
   }, [])
 
   const handleSync = async (silent = false) => {
@@ -66,7 +66,7 @@ export function MasteryDashboard({ userId }: { userId: string }) {
       return
     }
 
-    if (!silent) setIsSyncing(true)
+    setIsSyncing(true)
     try {
       const res = await syncMasteryData()
       if (res.error) {
@@ -177,10 +177,20 @@ export function MasteryDashboard({ userId }: { userId: string }) {
     return result
   }, [flashcards, cardProgress, subtopics, topics])
 
+  const [showPushPrompt, setShowPushPrompt] = useState(false)
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      if (Notification.permission === 'default') {
+        setShowPushPrompt(true)
+      }
+    }
+  }, [])
+
   return (
     <div className="flex flex-col gap-10 w-full">
       {/* PUSH NOTIFICATION PROMPT */}
-      {typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default' && (
+      {showPushPrompt && (
         <section className="bg-gradient-to-r from-blue-500/10 to-[#171717] border border-blue-500/20 rounded-3xl p-6 flex flex-col md:flex-row items-center justify-between gap-6 shadow-xl relative overflow-hidden">
           <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 rounded-full blur-[80px] pointer-events-none" />
           <div className="flex items-center gap-4 relative z-10">
