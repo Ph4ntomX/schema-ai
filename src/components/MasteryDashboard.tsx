@@ -79,6 +79,9 @@ export function MasteryDashboard({ userId }: { userId: string }) {
         if (pushRes.ok) {
           const itemIds = pendingItems.map(item => item.id as number)
           await db.sync_queue.bulkDelete(itemIds)
+        } else {
+          const errData = await pushRes.json().catch(() => ({}))
+          throw new Error(errData.error || 'Failed to push offline progress to server')
         }
       }
 
