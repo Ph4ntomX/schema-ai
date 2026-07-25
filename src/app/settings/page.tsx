@@ -30,9 +30,17 @@ export default function SettingsPage() {
     try {
       const permission = await Notification.requestPermission()
       if (permission === 'granted') {
-        const registration = await navigator.serviceWorker.getRegistration()
+        let registration = await navigator.serviceWorker.getRegistration()
         if (!registration) {
-          throw new Error('PWA Service Worker is not active! Please build and start the app for production.')
+          try {
+            registration = await navigator.serviceWorker.register('/sw.js')
+          } catch (e: any) {
+            throw new Error('Service Worker registration failed: ' + e.message)
+          }
+        }
+        
+        if (!registration) {
+          throw new Error('PWA Service Worker is still not active! Please try refreshing the page.')
         }
 
         const subscription = await registration.pushManager.subscribe({
@@ -67,8 +75,8 @@ export default function SettingsPage() {
         toast.error('Notification permission denied by browser')
       }
     } catch (err: any) {
-      console.error(err)
-      toast.error('Failed to enable notifications. Are you offline or not running a PWA?')
+      console.error('Push Subscription Error:', err)
+      toast.error(err?.message || 'Failed to enable notifications. Are you offline or not running a PWA?')
     }
     setIsSubscribing(false)
   }
