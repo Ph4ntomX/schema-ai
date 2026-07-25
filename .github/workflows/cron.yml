@@ -1,0 +1,17 @@
+name: Daily Push Notifications
+
+on:
+  workflow_dispatch: # Allows you to manually click "Run workflow" in GitHub UI
+  schedule:
+    # 9 AM UTC is 5:00 PM Malaysia Time
+    - cron: '0 9 * * *'
+    # 3 PM UTC is 11:00 PM Malaysia Time
+    - cron: '0 15 * * *'
+
+jobs:
+  trigger-reminders:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Hit Vercel Cron Endpoint
+        # Replace the URL below with your actual Vercel production URL once deployed
+        run: curl -X GET "https://spm-cards.vercel.app/api/cron/reminders" -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
