@@ -68,6 +68,21 @@ export function MasteryDashboard({ userId }: { userId: string }) {
 
     setIsSyncing(true)
     try {
+      // CRITICAL FIX: Push any pending offline local progress to the cloud FIRST
+      const pendingItems = await db.sync_queue.orderBy('timestamp').toArray()
+      if (pendingItems.length > 0) {
+        const pushRes = await fetch('/api/sync', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ items: pendingItems }),
+        })
+        if (pushRes.ok) {
+          const itemIds = pendingItems.map(item => item.id as number)
+          await db.sync_queue.bulkDelete(itemIds)
+        }
+      }
+
+      // NOW that the cloud has our latest work, pull the entire DB state
       const res = await syncMasteryData()
       if (res.error) {
         if (!silent) toast.error('Sync failed: ' + res.error)
