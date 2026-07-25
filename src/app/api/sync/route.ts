@@ -70,6 +70,7 @@ export async function POST(request: Request) {
         next_review.setMinutes(next_review.getMinutes() - 1)
       } else {
         next_review.setDate(next_review.getDate() + interval)
+        next_review.setHours(0, 0, 0, 0) // Snap to exactly midnight
       }
 
       // Upsert progress cleanly respecting RLS

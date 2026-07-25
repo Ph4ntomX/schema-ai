@@ -75,6 +75,7 @@ export function FlashcardReviewer({ initialQueue, onComplete }: FlashcardReviewe
       next_review.setHours(next_review.getHours() + Math.round(interval * 24))
     } else {
       next_review.setDate(next_review.getDate() + interval)
+      next_review.setHours(0, 0, 0, 0) // Snap to exactly midnight
     }
 
     const newProgress = {

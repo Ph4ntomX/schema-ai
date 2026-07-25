@@ -33,14 +33,17 @@ export default function SettingsPage() {
         let registration = await navigator.serviceWorker.getRegistration()
         if (!registration) {
           try {
-            registration = await navigator.serviceWorker.register('/sw.js')
+            await navigator.serviceWorker.register('/sw.js')
           } catch (e: any) {
             throw new Error('Service Worker registration failed: ' + e.message)
           }
         }
         
-        if (!registration) {
-          throw new Error('PWA Service Worker is still not active! Please try refreshing the page.')
+        // Wait for the worker to finish installing and become officially active
+        registration = await navigator.serviceWorker.ready
+        
+        if (!registration || !registration.active) {
+          throw new Error('PWA Service Worker is still installing. Please wait a second and try again.')
         }
 
         const subscription = await registration.pushManager.subscribe({
