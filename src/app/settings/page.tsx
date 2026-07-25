@@ -1,35 +1,34 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { motion } from 'framer-motion'
 import { useRouter } from 'next/navigation'
-import { ChevronLeft, Save, Loader2, Minus, Plus } from 'lucide-react'
-import { saveOnboardingProfile } from '@/app/actions/user'
 import { createClient } from '@/utils/supabase/client'
-import Link from 'next/link'
+import { ChevronLeft, Flame, Settings2, Save, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 export default function SettingsPage() {
   const router = useRouter()
-  const [dailyLimit, setDailyLimit] = useState(20)
+  const [limit, setLimit] = useState(20)
   const [subjectsGoal, setSubjectsGoal] = useState(2)
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
+  const [streakFreezes, setStreakFreezes] = useState(0)
 
   useEffect(() => {
     async function loadSettings() {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
-        const { data: profile } = await supabase
+        const { data } = await supabase
           .from('user_settings')
-          .select('daily_card_limit, daily_subjects_goal')
+          .select('daily_card_limit, daily_subjects_goal, streak_freezes')
           .eq('id', user.id)
           .maybeSingle()
-        
-        if (profile) {
-          if (profile.daily_card_limit) setDailyLimit(profile.daily_card_limit)
-          if (profile.daily_subjects_goal) setSubjectsGoal(profile.daily_subjects_goal)
+          
+        if (data) {
+          if (data.daily_card_limit) setLimit(data.daily_card_limit)
+          if (data.daily_subjects_goal) setSubjectsGoal(data.daily_subjects_goal)
+          if (data.streak_freezes !== null) setStreakFreezes(data.streak_freezes)
         }
       }
       setIsLoading(false)
@@ -39,21 +38,31 @@ export default function SettingsPage() {
 
   const handleSave = async () => {
     setIsSaving(true)
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
     
-    const res = await saveOnboardingProfile(dailyLimit, subjectsGoal)
-    
-    if (res && res.error) {
-      toast.error(`Failed to save settings: ${res.error}`)
-    } else {
-      toast.success('Settings saved successfully!')
+    if (user) {
+      const { error } = await supabase
+        .from('user_settings')
+        .update({ 
+          daily_card_limit: limit,
+          daily_subjects_goal: subjectsGoal
+        })
+        .eq('id', user.id)
+        
+      if (error) {
+        toast.error('Failed to save settings')
+      } else {
+        toast.success('Settings updated successfully!')
+      }
     }
     setIsSaving(false)
   }
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-[#0A0A0A] flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-[#a1a1aa]" />
+      <div className="min-h-screen bg-[#0A0A0A] flex flex-col items-center justify-center">
+        <Loader2 className="w-10 h-10 animate-spin text-[#a1a1aa]" />
       </div>
     )
   }
@@ -62,79 +71,103 @@ export default function SettingsPage() {
     <div className="min-h-screen bg-[#0A0A0A] p-6 pb-24 relative">
       <header className="max-w-2xl mx-auto flex items-center justify-between pt-6 pb-12">
         <div className="flex items-center gap-4">
-          <Link 
-            href="/"
+          <button 
+            onClick={() => router.push('/')}
             className="w-10 h-10 flex items-center justify-center rounded-full bg-[#171717] border border-[#262626] hover:bg-[#202020] transition-colors text-white"
           >
             <ChevronLeft className="w-5 h-5" />
-          </Link>
+          </button>
           <div>
             <h1 className="text-3xl font-bold text-white tracking-tight">Settings</h1>
-            <p className="text-[#a1a1aa] text-sm mt-1">Configure your dashboard experience</p>
+            <p className="text-[#a1a1aa] text-sm mt-1">Configure your daily study limits</p>
           </div>
         </div>
       </header>
 
-      <main className="max-w-2xl mx-auto flex flex-col gap-6">
-        <div className="bg-[#171717] border border-[#262626] rounded-3xl p-8 sm:p-10 shadow-xl">
-          <h2 className="text-xl font-bold text-white tracking-tight mb-3">Cards per Subject</h2>
-          <p className="text-[#a1a1aa] mb-10 text-sm">How many flashcards do you want to review <strong>per subject</strong> each day?</p>
-
-          <div className="flex items-center justify-center gap-6 mb-12 w-full">
-            <button 
-              onClick={() => setDailyLimit(Math.max(5, dailyLimit - 5))}
-              className="w-14 h-14 rounded-full bg-[#202020] border border-[#262626] flex items-center justify-center text-white hover:bg-[#262626] hover:scale-110 active:scale-90 transition-all duration-200"
-            >
-              <Minus className="w-6 h-6" />
-            </button>
-            
-            <div className="w-28 text-center flex items-baseline justify-center gap-1">
-              <span className="text-7xl font-bold text-white tracking-tighter tabular-nums">{dailyLimit}</span>
-            </div>
-
-            <button 
-              onClick={() => setDailyLimit(dailyLimit + 5)}
-              className="w-14 h-14 rounded-full bg-[#202020] border border-[#262626] flex items-center justify-center text-white hover:bg-[#262626] hover:scale-110 active:scale-90 transition-all duration-200"
-            >
-              <Plus className="w-6 h-6" />
-            </button>
+      <main className="max-w-2xl mx-auto flex flex-col gap-8">
+        
+        {/* Study Config */}
+        <section className="bg-[#171717] border border-[#262626] rounded-3xl p-8 shadow-sm">
+          <div className="flex items-center gap-3 mb-8 border-b border-[#262626] pb-4">
+            <Settings2 className="w-6 h-6 text-blue-500" />
+            <h2 className="text-xl font-bold text-white">Daily Deck Config</h2>
           </div>
           
-          <div className="w-full h-px bg-[#262626] mb-12" />
-
-          <h2 className="text-xl font-bold text-white tracking-tight mb-3">Daily Subjects</h2>
-          <p className="text-[#a1a1aa] mb-10 text-sm">How many different subjects do you want to focus on each day?</p>
-
-          <div className="flex items-center justify-center gap-6 mb-12 w-full">
-            <button 
-              onClick={() => setSubjectsGoal(Math.max(1, subjectsGoal - 1))}
-              className="w-14 h-14 rounded-full bg-[#202020] border border-[#262626] flex items-center justify-center text-white hover:bg-[#262626] hover:scale-110 active:scale-90 transition-all duration-200"
-            >
-              <Minus className="w-6 h-6" />
-            </button>
-            
-            <div className="w-28 text-center flex items-baseline justify-center gap-1">
-              <span className="text-7xl font-bold text-white tracking-tighter tabular-nums">{subjectsGoal}</span>
+          <div className="flex flex-col gap-8">
+            <div className="flex flex-col gap-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-semibold text-white text-lg">Subjects Per Day</h3>
+                  <p className="text-sm text-[#a1a1aa]">How many subjects to include in your Daily Deck.</p>
+                </div>
+                <span className="text-3xl font-black text-white">{subjectsGoal}</span>
+              </div>
+              <input 
+                type="range" 
+                min="1" 
+                max="5" 
+                step="1"
+                value={subjectsGoal}
+                onChange={(e) => setSubjectsGoal(parseInt(e.target.value))}
+                className="w-full accent-blue-500 h-2 bg-[#262626] rounded-lg appearance-none cursor-pointer mt-2"
+              />
             </div>
 
-            <button 
-              onClick={() => setSubjectsGoal(Math.min(10, subjectsGoal + 1))}
-              className="w-14 h-14 rounded-full bg-[#202020] border border-[#262626] flex items-center justify-center text-white hover:bg-[#262626] hover:scale-110 active:scale-90 transition-all duration-200"
-            >
-              <Plus className="w-6 h-6" />
-            </button>
+            <div className="flex flex-col gap-4 pt-4 border-t border-[#262626]">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-semibold text-white text-lg">Cards Per Subject</h3>
+                  <p className="text-sm text-[#a1a1aa]">Maximum due cards pulled for each selected subject.</p>
+                </div>
+                <span className="text-3xl font-black text-white">{limit}</span>
+              </div>
+              <input 
+                type="range" 
+                min="5" 
+                max="100" 
+                step="5"
+                value={limit}
+                onChange={(e) => setLimit(parseInt(e.target.value))}
+                className="w-full accent-blue-500 h-2 bg-[#262626] rounded-lg appearance-none cursor-pointer mt-2"
+              />
+            </div>
           </div>
+        </section>
 
-          <div className="flex flex-col items-center gap-4">
-            <button 
-              onClick={handleSave}
-              disabled={isSaving}
-              className="w-full bg-white text-black font-semibold py-4 rounded-xl hover:bg-[#e4e4e7] hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 flex items-center justify-center gap-2 shadow-[0_0_30px_rgba(255,255,255,0.1)]"
-            >
-              {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : <><Save className="w-5 h-5" /> Save Configuration</>}
-            </button>
+        {/* Gamification Items */}
+        <section className="bg-[#171717] border border-[#262626] rounded-3xl p-8 shadow-sm">
+          <div className="flex items-center gap-3 mb-8 border-b border-[#262626] pb-4">
+            <Flame className="w-6 h-6 text-[#ff9500]" />
+            <h2 className="text-xl font-bold text-white">Gamification</h2>
           </div>
+          
+          <div className="flex items-center justify-between p-6 bg-[#202020] rounded-2xl border border-[#3f3f46]">
+            <div>
+              <h3 className="font-semibold text-white text-lg flex items-center gap-2">
+                Streak Freezes 🛡️
+              </h3>
+              <p className="text-sm text-[#a1a1aa] mt-1">
+                Equipped shields that protect your streak if you miss a day. Earned every 7 days.
+              </p>
+            </div>
+            <div className="text-4xl font-black text-white">
+              {streakFreezes}
+            </div>
+          </div>
+        </section>
+
+        {/* Action Bar */}
+        <div className="flex justify-end pt-4">
+          <button
+            onClick={handleSave}
+            disabled={isSaving}
+            className="flex items-center gap-2 bg-white text-black px-8 py-4 rounded-xl font-bold hover:bg-gray-200 transition-colors shadow-[0_0_20px_rgba(255,255,255,0.1)] disabled:opacity-50"
+          >
+            {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
+            Save Changes
+          </button>
         </div>
+
       </main>
     </div>
   )

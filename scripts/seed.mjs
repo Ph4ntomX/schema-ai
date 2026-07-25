@@ -3,6 +3,7 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import dotenv from 'dotenv'
 import { createClient } from '@supabase/supabase-js'
+import { randomUUID } from 'crypto'
 
 // Setup for ES Modules
 const __filename = fileURLToPath(import.meta.url)
@@ -22,187 +23,167 @@ if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
 // Initialize Supabase client using Service Role Key to bypass RLS
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
-const dataDir = path.resolve(__dirname, '../data')
+const dataDir = path.resolve(__dirname, '../notes_output')
 
 async function main() {
   if (!fs.existsSync(dataDir)) {
-    console.error(`Data directory not found at ${dataDir}. Creating one for you...`)
-    fs.mkdirSync(dataDir, { recursive: true })
-    console.log("Please populate the /data directory with your JSON files and run again.")
-    process.exit(0)
+    console.error(`Data directory not found at ${dataDir}.`)
+    process.exit(1)
   }
 
   const files = fs.readdirSync(dataDir).filter(file => file.endsWith('.json'))
 
   if (files.length === 0) {
-    console.log("No JSON files found in /data directory. Wiping all papers from database...")
-    await supabase.from('questions').delete().neq('id', '00000000-0000-0000-0000-000000000000') // Deletes all
+    console.log("No JSON files found in /notes_output directory. Wiping all topics from database...")
+    await supabase.from('topics').delete().neq('id', '00000000-0000-0000-0000-000000000000')
     return
   }
 
-  console.log(`Found ${files.length} JSON files. Beginning bidirectional sync...`)
+  console.log(`Found ${files.length} JSON files. Beginning bidirectional sync for Mastery Queue...`)
 
-  // 1. Delete papers from DB that no longer have a JSON file
-  const activePaperIds = files.map(f => path.basename(f, '.json'))
-  const { data: dbPapers } = await supabase.from('questions').select('paper_id')
-  
-  if (dbPapers) {
-    const dbPaperIds = [...new Set(dbPapers.map(p => p.paper_id))]
-    const papersToDelete = dbPaperIds.filter(id => !activePaperIds.includes(id))
+  // Parse files into structured data
+  const parsedData = []
+  for (const file of files) {
+    const filePath = path.join(dataDir, file)
+    let subject = "Unknown"
+    let form = 4 // Default to 4
     
-    if (papersToDelete.length > 0) {
-      console.log(`Deleting ${papersToDelete.length} orphaned papers from database...`)
-      await supabase.from('questions').delete().in('paper_id', papersToDelete)
+    // e.g. "biology-pandai-form-4.json"
+    const lowerName = file.toLowerCase()
+    if (lowerName.includes('biology')) subject = "Biology"
+    else if (lowerName.includes('chemistry')) subject = "Chemistry"
+    else if (lowerName.includes('physics')) subject = "Physics"
+    else if (lowerName.includes('sejarah')) subject = "Sejarah"
+    else if (lowerName.includes('islam')) subject = "Pendidikan Islam"
+    
+    if (lowerName.includes('form-4') || lowerName.includes('form4')) form = 4
+    else if (lowerName.includes('form-5') || lowerName.includes('form5')) form = 5
+
+    const content = fs.readFileSync(filePath, 'utf-8')
+    try {
+      const topics = JSON.parse(content)
+      parsedData.push({ subject, form, topics, filename: file })
+    } catch (e) {
+      console.error(`Failed to parse ${file}: ${e.message}`)
     }
   }
 
-  for (const file of files) {
-    const paperId = path.basename(file, '.json')
-    const filePath = path.join(dataDir, file)
-    console.log(`\nProcessing: ${paperId}`)
+  // Group by subject/form to manage deletions
+  const dbTopicsRes = await supabase.from('topics').select('id, subject, form, title')
+  const dbTopics = dbTopicsRes.data || []
 
-    // Parse JSON
-    const fileContent = fs.readFileSync(filePath, 'utf-8')
-    let questionsData
-    try {
-      questionsData = JSON.parse(fileContent)
-    } catch (e) {
-      console.error(`Failed to parse ${file}:`, e.message)
-      continue
-    }
+  // Track what we touch to delete the rest
+  const touchedTopicIds = new Set()
+  const touchedSubtopicIds = new Set()
+  const touchedFlashcardIds = new Set()
 
-    console.log(`Syncing data for paper_id: ${paperId}...`)
+  let statTopics = 0, statSubtopics = 0, statCards = 0
 
-    // Fetch existing questions for this paper to preserve IDs
-    const { data: existingQuestions, error: eqError } = await supabase
-      .from('questions')
-      .select('id, question_label')
-      .eq('paper_id', paperId)
+  for (const fileData of parsedData) {
+    const { subject, form, topics, filename } = fileData
+    console.log(`\nProcessing: ${filename} (${subject} - ${form})`)
 
-    if (eqError) {
-      console.error(`Failed to fetch existing questions for ${paperId}:`, eqError)
-      continue
-    }
-
-    const existingQMap = new Map()
-    existingQuestions?.forEach(q => existingQMap.set(q.question_label, q.id))
-
-    // Track active questions to delete missing ones
-    const activeQuestionLabels = questionsData.map(q => q.id)
-    const questionsToDelete = Array.from(existingQMap.keys()).filter(label => !activeQuestionLabels.includes(label))
-    
-    if (questionsToDelete.length > 0) {
-      const idsToDelete = questionsToDelete.map(label => existingQMap.get(label))
-      await supabase.from('questions').delete().in('id', idsToDelete)
-      console.log(`Deleted ${questionsToDelete.length} orphaned questions.`)
-    }
-
-    let insertedQuestions = 0
-    let updatedQuestions = 0
-    let insertedFlashcards = 0
-    let updatedFlashcards = 0
-
-    // Process each question
-    for (const q of questionsData) {
-      const { id: qn_label, qn, m, c_key, has_diagram, r } = q
-      let questionUuid = existingQMap.get(qn_label)
-
-      if (questionUuid) {
-        // Update existing question
-        await supabase
-          .from('questions')
-          .update({ marks: m, concept_key: c_key, has_diagram })
-          .eq('id', questionUuid)
-        updatedQuestions++
+    for (const t of topics) {
+      // 1. Sync Topic
+      let topicId = null
+      const existingTopic = dbTopics.find(dbT => dbT.subject === subject && dbT.form === form && dbT.title === t.topic_title)
+      
+      if (existingTopic) {
+        topicId = existingTopic.id
       } else {
-        // Insert new question
-        const { data: insertedQuestion, error: qError } = await supabase
-          .from('questions')
-          .insert({
-            paper_id: paperId,
-            question_label: qn_label,
-            marks: m,
-            concept_key: c_key,
-            has_diagram: has_diagram
-          })
-          .select('id')
-          .single()
-
-        if (qError) {
-          console.error(`Failed to insert question ${qn_label}:`, qError)
-          continue
-        }
-        questionUuid = insertedQuestion.id
-        insertedQuestions++
+        const { data, error } = await supabase.from('topics').insert({
+          subject, form, title: t.topic_title
+        }).select('id').single()
+        if (error) { console.error(`Error inserting topic ${t.topic_title}:`, error); continue; }
+        topicId = data.id
       }
+      touchedTopicIds.add(topicId)
+      statTopics++
 
-      // Process flashcards for this question
-      if (r && Array.isArray(r)) {
-        // Fetch existing flashcards
-        const { data: existingCards } = await supabase
-          .from('flashcards')
-          .select('id, ref_id')
-          .eq('question_id', questionUuid)
-          
-        const existingCardMap = new Map()
-        existingCards?.forEach(c => existingCardMap.set(c.ref_id, c.id))
+      // 2. Sync Subtopics
+      const { data: existingSubtopics } = await supabase.from('subtopics').select('id, title').eq('topic_id', topicId)
+      const subMap = new Map((existingSubtopics || []).map(st => [st.title, st.id]))
 
-        // Track active flashcards to delete missing ones
-        const activeCardRefs = r.map(c => c.id)
-        const cardsToDelete = Array.from(existingCardMap.keys()).filter(ref => !activeCardRefs.includes(ref))
+      for (const st of t.subtopics) {
+        let subtopicId = subMap.get(st.subtopic_title)
         
-        if (cardsToDelete.length > 0) {
-          const idsToDelete = cardsToDelete.map(ref => existingCardMap.get(ref))
-          await supabase.from('flashcards').delete().in('id', idsToDelete)
+        if (!subtopicId) {
+          const { data, error } = await supabase.from('subtopics').insert({
+            topic_id: topicId, title: st.subtopic_title
+          }).select('id').single()
+          if (error) { console.error(`Error inserting subtopic ${st.subtopic_title}:`, error); continue; }
+          subtopicId = data.id
         }
+        touchedSubtopicIds.add(subtopicId)
+        statSubtopics++
+
+        // 3. Sync Flashcards
+        const { data: existingCards } = await supabase.from('flashcards').select('id, question').eq('subtopic_id', subtopicId)
+        const cardMap = new Map((existingCards || []).map(c => [c.question, c.id]))
 
         const cardsToInsert = []
-
-        for (const card of r) {
-          const existingCardId = existingCardMap.get(card.id)
+        for (const card of st.flashcards) {
+          const existingCardId = cardMap.get(card.f_q)
+          
           if (existingCardId) {
-            // Update existing flashcard
-            await supabase
-              .from('flashcards')
-              .update({
-                front_text: card.f,
-                back_text: card.t,
-                card_type: card.type,
-                is_alt: card.alt || false
-              })
-              .eq('id', existingCardId)
-            updatedFlashcards++
+            // Update answer/type if needed
+            await supabase.from('flashcards').update({
+              answer: card.f_a,
+              type: card.type
+            }).eq('id', existingCardId)
+            touchedFlashcardIds.add(existingCardId)
           } else {
-            // Queue for insert
             cardsToInsert.push({
-              question_id: questionUuid,
-              ref_id: card.id,
-              front_text: card.f,
-              back_text: card.t,
-              card_type: card.type,
-              is_alt: card.alt || false
+              id: randomUUID(),
+              subtopic_id: subtopicId,
+              type: card.type || 'conceptual',
+              question: card.f_q,
+              answer: card.f_a
             })
           }
         }
 
         if (cardsToInsert.length > 0) {
-          const { error: fError } = await supabase
-            .from('flashcards')
-            .insert(cardsToInsert)
-
-          if (fError) {
-            console.error(`Failed to insert flashcards for question ${qn_label}:`, fError)
-          } else {
-            insertedFlashcards += cardsToInsert.length
+          const { data: inserted, error: iErr } = await supabase.from('flashcards').insert(cardsToInsert).select('id')
+          if (iErr) {
+            console.error(`Error inserting cards for ${st.subtopic_title}:`, iErr)
+          } else if (inserted) {
+            inserted.forEach(c => touchedFlashcardIds.add(c.id))
           }
         }
+        statCards += st.flashcards.length
       }
     }
-
-    console.log(`Successfully synced ${paperId}: Inserted ${insertedQuestions} qs / ${insertedFlashcards} cards. Updated ${updatedQuestions} qs / ${updatedFlashcards} cards.`)
   }
 
-  console.log("\n✅ Seeding complete!")
+  // Cleanup Phase: Delete anything in DB that wasn't in the JSON
+  console.log('\nCleaning up orphaned records (Bidirectional Sync)...')
+  
+  const allCardsRes = await supabase.from('flashcards').select('id')
+  const allCards = allCardsRes.data || []
+  const cardsToDelete = allCards.filter(c => !touchedFlashcardIds.has(c.id)).map(c => c.id)
+  if (cardsToDelete.length > 0) {
+    await supabase.from('flashcards').delete().in('id', cardsToDelete)
+    console.log(`Deleted ${cardsToDelete.length} orphaned flashcards.`)
+  }
+
+  const allSubtopicsRes = await supabase.from('subtopics').select('id')
+  const allSubtopics = allSubtopicsRes.data || []
+  const subtopicsToDelete = allSubtopics.filter(s => !touchedSubtopicIds.has(s.id)).map(s => s.id)
+  if (subtopicsToDelete.length > 0) {
+    await supabase.from('subtopics').delete().in('id', subtopicsToDelete)
+    console.log(`Deleted ${subtopicsToDelete.length} orphaned subtopics.`)
+  }
+
+  const allTopicsRes = await supabase.from('topics').select('id')
+  const allTopics = allTopicsRes.data || []
+  const topicsToDelete = allTopics.filter(t => !touchedTopicIds.has(t.id)).map(t => t.id)
+  if (topicsToDelete.length > 0) {
+    await supabase.from('topics').delete().in('id', topicsToDelete)
+    console.log(`Deleted ${topicsToDelete.length} orphaned topics.`)
+  }
+
+  console.log(`\n✅ Seeding complete! Synced ${statTopics} Topics, ${statSubtopics} Subtopics, ${statCards} Flashcards.`)
 }
 
 main().catch(console.error)

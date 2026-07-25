@@ -28,9 +28,13 @@ export async function updateSession(request: NextRequest) {
   )
 
   try {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
+    let { data: { user }, error } = await supabase.auth.getUser()
+    
+    // If getUser fails (e.g., when offline), gracefully fallback to checking the local session cookie
+    if (error || !user) {
+      const { data: { session } } = await supabase.auth.getSession()
+      user = session?.user || null
+    }
 
     const isAuthRoute = request.nextUrl.pathname.startsWith('/login') || request.nextUrl.pathname.startsWith('/auth')
 
@@ -48,10 +52,10 @@ export async function updateSession(request: NextRequest) {
       return redirectResponse
     }
 
-    // If logged in and on an auth route, redirect to onboarding
+    // If logged in and on an auth route, redirect to dashboard (dashboard handles onboarding check)
     if (user && isAuthRoute) {
       const url = request.nextUrl.clone()
-      url.pathname = '/onboarding'
+      url.pathname = '/'
       const redirectResponse = NextResponse.redirect(url)
       
       supabaseResponse.cookies.getAll().forEach(cookie => {
@@ -61,10 +65,12 @@ export async function updateSession(request: NextRequest) {
       return redirectResponse
     }
   } catch (error) {
-    // If Supabase throws an error (e.g. JWT expired), clear and redirect to login
-    const url = request.nextUrl.clone()
-    url.pathname = '/login'
-    return NextResponse.redirect(url)
+    // Total failure fallback
+    if (!request.nextUrl.pathname.startsWith('/login')) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/login'
+      return NextResponse.redirect(url)
+    }
   }
 
   return supabaseResponse

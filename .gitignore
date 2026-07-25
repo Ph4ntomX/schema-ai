@@ -20,6 +20,8 @@
 # production
 /build
 /data
+/notes_input
+/notes_output
 
 # misc
 .DS_Store

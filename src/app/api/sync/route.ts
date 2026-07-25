@@ -4,7 +4,7 @@ import { createClient } from '@/utils/supabase/server'
 interface SyncPayload {
   action: string
   card_id: string
-  rating: 'good' | 'hard' | 'easy'
+  rating: 'wrong' | 'right'
   timestamp: string
 }
 
@@ -33,38 +33,34 @@ export async function POST(request: Request) {
 
       // Fetch existing progress
       const { data: progress } = await supabase
-        .from('user_progress')
+        .from('user_card_progress')
         .select('*')
         .eq('user_id', user.id)
-        .eq('flashcard_id', payload.card_id)
+        .eq('card_id', payload.card_id)
         .maybeSingle()
 
-      // Core SM-2 Spaced Repetition Logic
-      const isFirstReview = !progress
+      // Binary Spaced Repetition Logic (Server-side recalculation)
       let ease_factor = progress?.ease_factor ?? 2.5
       let interval = progress?.interval ?? 0
-      let repetition_count = progress?.repetition_count ?? 0
+      let repetitions = progress?.repetitions ?? 0
       
-      switch (payload.rating) {
-        case 'easy':
-          ease_factor = Math.min(ease_factor + 0.15, 3.0)
-          interval = interval === 0 ? 4 : Math.round(interval * ease_factor * 1.3)
-          repetition_count += 1
-          break
-        case 'good':
-          // Keep ease same, multiply interval normally
-          interval = interval === 0 ? 1 : Math.round(interval * ease_factor)
-          repetition_count += 1
-          break
-        case 'hard':
-          ease_factor = Math.max(ease_factor - 0.2, 1.3)
-          // If this is their first time grading it and they got it wrong,
-          // they need to study it today! Make interval 0 (due instantly).
-          // Otherwise, if they just forgot it in review, interval resets to 1.
-          interval = isFirstReview ? 0 : 1
-          // If they got it hard, they still reviewed it, so increment if it's not the first time
-          if (!isFirstReview) repetition_count += 1
-          break
+      if (payload.rating === 'wrong') {
+        ease_factor = Math.max(ease_factor - 0.2, 1.3)
+        interval = 0
+        repetitions = 0
+      } else if (payload.rating === 'right') {
+        ease_factor = Math.min(ease_factor + 0.1, 3.0)
+        
+        if (repetitions === 0) {
+          interval = 1
+        } else if (repetitions === 1) {
+          interval = 1
+        } else if (repetitions === 2) {
+          interval = 6
+        } else {
+          interval = Math.round(interval * ease_factor)
+        }
+        repetitions += 1
       }
 
       // Calculate exact next review timestamp
@@ -78,16 +74,16 @@ export async function POST(request: Request) {
 
       // Upsert progress cleanly respecting RLS
       const { error: upsertError } = await supabase
-        .from('user_progress')
+        .from('user_card_progress')
         .upsert({
           user_id: user.id,
-          flashcard_id: payload.card_id,
+          card_id: payload.card_id,
           ease_factor,
           interval,
-          repetition_count,
-          next_review_at: next_review.toISOString(),
-          last_reviewed_at: new Date(payload.timestamp || Date.now()).toISOString()
-        }, { onConflict: 'user_id, flashcard_id' })
+          repetitions,
+          next_review: next_review.toISOString(),
+          last_reviewed: new Date(payload.timestamp || Date.now()).toISOString()
+        }, { onConflict: 'user_id, card_id' })
 
       if (upsertError) {
         throw new Error(`Upsert failed: ${upsertError.message}`)

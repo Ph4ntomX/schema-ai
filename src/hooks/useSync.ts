@@ -25,7 +25,6 @@ export function useSync() {
         const itemIds = items.map(item => item.id as number)
         await db.sync_queue.bulkDelete(itemIds)
         console.log(`Successfully synced ${items.length} items to schema.ai server.`)
-        toast.success('Offline progress saved to cloud!')
       } else {
         const errorData = await response.json()
         console.error('Failed to sync offline data to server:', errorData)
