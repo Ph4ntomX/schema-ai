@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
-import { ChevronLeft, Flame, Settings2, Save, Loader2 } from 'lucide-react'
+import { ChevronLeft, Flame, Settings2, Save, Loader2, Bell } from 'lucide-react'
 import { toast } from 'sonner'
 
 export default function SettingsPage() {
@@ -13,6 +13,61 @@ export default function SettingsPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [streakFreezes, setStreakFreezes] = useState(0)
+  const [isSubscribing, setIsSubscribing] = useState(false)
+  const [hasSubscribed, setHasSubscribed] = useState(false)
+
+  useEffect(() => {
+    // Check if they are already subscribed natively
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      if (Notification.permission === 'granted') {
+        setHasSubscribed(true)
+      }
+    }
+  }, [])
+
+  const enableNotifications = async () => {
+    setIsSubscribing(true)
+    try {
+      const permission = await Notification.requestPermission()
+      if (permission === 'granted') {
+        const registration = await navigator.serviceWorker.ready
+        const subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
+        })
+
+        const supabase = createClient()
+        const { data: { user } } = await supabase.auth.getUser()
+        
+        if (user) {
+          // Check if subscription already exists to avoid duplicate errors
+          const { data: existing } = await supabase
+            .from('push_subscriptions')
+            .select('id')
+            .eq('user_id', user.id)
+            
+          if (!existing || existing.length === 0) {
+            const { error } = await supabase
+              .from('push_subscriptions')
+              .insert({
+                user_id: user.id,
+                subscription: subscription as any
+              })
+              
+            if (error) throw error
+          }
+          setHasSubscribed(true)
+          toast.success('Notifications successfully enabled!')
+        }
+      } else {
+        toast.error('Notification permission denied by browser')
+      }
+    } catch (err: any) {
+      console.error(err)
+      toast.error('Failed to enable notifications. Are you offline or not running a PWA?')
+    }
+    setIsSubscribing(false)
+  }
 
   useEffect(() => {
     async function loadSettings() {
@@ -153,6 +208,41 @@ export default function SettingsPage() {
             <div className="text-4xl font-black text-white">
               {streakFreezes}
             </div>
+          </div>
+        </section>
+
+        {/* Notifications Config */}
+        <section className="bg-[#171717] border border-[#262626] rounded-3xl p-8 shadow-sm">
+          <div className="flex items-center gap-3 mb-8 border-b border-[#262626] pb-4">
+            <Bell className="w-6 h-6 text-yellow-500" />
+            <h2 className="text-xl font-bold text-white">Reminders</h2>
+          </div>
+          
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-semibold text-white text-lg">Push Notifications</h3>
+              <p className="text-sm text-[#a1a1aa] mt-1 max-w-[80%]">
+                Receive daily reminders at 5 PM and 11 PM if you haven't completed your Daily Deck.
+              </p>
+            </div>
+            
+            <button
+              onClick={enableNotifications}
+              disabled={hasSubscribed || isSubscribing}
+              className={`px-6 py-3 rounded-xl font-bold transition-all shadow-sm ${
+                hasSubscribed 
+                  ? 'bg-green-500/10 text-green-500 border border-green-500/20' 
+                  : 'bg-blue-600 text-white hover:bg-blue-700'
+              }`}
+            >
+              {isSubscribing ? (
+                <Loader2 className="w-5 h-5 animate-spin mx-auto" />
+              ) : hasSubscribed ? (
+                'Enabled ✓'
+              ) : (
+                'Enable'
+              )}
+            </button>
           </div>
         </section>
 

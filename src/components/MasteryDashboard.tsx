@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronDown, ChevronRight, Play, RefreshCw, Loader2, Database, BookOpen } from 'lucide-react'
+import { ChevronDown, ChevronRight, Play, RefreshCw, Loader2, Database, BookOpen, Bell } from 'lucide-react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '@/lib/db'
 import { syncMasteryData, resetSubtopicProgress } from '@/app/actions/study'
@@ -56,8 +56,8 @@ export function MasteryDashboard({ userId }: { userId: string }) {
   }, [cardProgress])
 
   useEffect(() => {
-    // Always trigger a silent background sync on mount to ensure cross-device consistency!
-    handleSync(true)
+    // Always trigger a visible background sync on mount
+    handleSync(false)
   }, [])
 
   const handleSync = async (silent = false) => {
@@ -179,6 +179,30 @@ export function MasteryDashboard({ userId }: { userId: string }) {
 
   return (
     <div className="flex flex-col gap-10 w-full">
+      {/* PUSH NOTIFICATION PROMPT */}
+      {typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default' && (
+        <section className="bg-gradient-to-r from-blue-500/10 to-[#171717] border border-blue-500/20 rounded-3xl p-6 flex flex-col md:flex-row items-center justify-between gap-6 shadow-xl relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/10 rounded-full blur-[80px] pointer-events-none" />
+          <div className="flex items-center gap-4 relative z-10">
+            <div className="w-12 h-12 flex-shrink-0 bg-blue-500/20 rounded-full flex items-center justify-center">
+              <Bell className="w-6 h-6 text-blue-400" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <h2 className="text-xl font-bold text-white">Enable Daily Reminders</h2>
+              <p className="text-[#a1a1aa] text-sm">
+                Never lose your streak! Get notified at 5 PM and 11 PM if you haven't studied.
+              </p>
+            </div>
+          </div>
+          <button 
+            onClick={() => router.push('/settings')}
+            className="relative z-10 flex items-center justify-center px-6 py-3 bg-blue-600 text-white rounded-full font-bold hover:bg-blue-700 transition-all whitespace-nowrap"
+          >
+            Go To Settings
+          </button>
+        </section>
+      )}
+
       {/* SECTION 1: IN PROGRESS / RESUME LEARNING */}
       {resumeCount > 0 && (
         <section className="bg-gradient-to-r from-red-500/10 to-[#171717] border border-red-500/20 rounded-3xl p-6 flex flex-col md:flex-row items-center justify-between gap-6 shadow-xl relative overflow-hidden">
