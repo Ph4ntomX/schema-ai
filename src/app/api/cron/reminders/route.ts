@@ -32,7 +32,7 @@ export async function GET(request: Request) {
   }
 
   webpush.setVapidDetails(
-    'mailto:admin@schema.ai', // Replace with a real contact email for push services
+    'mailto:supersheevypalpatine@gmail.com', // Replace with a real contact email for push services
     publicVapidKey,
     privateVapidKey
   )
