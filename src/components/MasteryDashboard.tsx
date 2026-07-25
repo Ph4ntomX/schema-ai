@@ -56,17 +56,17 @@ export function MasteryDashboard({ userId }: { userId: string }) {
   }, [cardProgress])
 
   useEffect(() => {
-    // Always trigger a visible background sync on mount
-    handleSync(true)
+    // Silent background sync on mount without triggering the massive pull-to-refresh spinner
+    handleSync(true, true)
   }, [])
 
-  const handleSync = async (silent = false) => {
+  const handleSync = async (silent = false, hideVisual = false) => {
     if (!navigator.onLine) {
       if (!silent) toast.error('You are offline. Showing cached local data.')
       return
     }
 
-    setIsSyncing(true)
+    if (!hideVisual) setIsSyncing(true)
     try {
       // CRITICAL FIX: Push any pending offline local progress to the cloud FIRST
       const pendingItems = await db.sync_queue.orderBy('timestamp').toArray()
@@ -104,7 +104,7 @@ export function MasteryDashboard({ userId }: { userId: string }) {
       console.warn('Offline or sync failed:', err)
       if (!silent) toast.error('Network unreachable. Operating in offline mode.')
     } finally {
-      setIsSyncing(false)
+      if (!hideVisual) setIsSyncing(false)
     }
   }
 
@@ -150,18 +150,20 @@ export function MasteryDashboard({ userId }: { userId: string }) {
   }, [topics, subtopics])
 
   // Categorize Progress
-  const { dailyDueBySubject, resumeCount, dailyDueCount, hasStartedLearning } = useMemo(() => {
+  const { dailyDueBySubject, resumeCount, dailyDueCount, hasStartedLearning, cardsReviewedToday } = useMemo(() => {
     const result = {
       dailyDueBySubject: {} as Record<string, number>,
       resumeCount: 0,
       dailyDueCount: 0,
-      hasStartedLearning: false
+      hasStartedLearning: false,
+      cardsReviewedToday: 0
     }
 
     if (!flashcards || !cardProgress || !subtopics || !topics) return result
     if (cardProgress.length > 0) result.hasStartedLearning = true
     
     const now = new Date().toISOString()
+    const todayString = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kuala_Lumpur' }).format(new Date())
     
     // Create fast lookup maps
     const subtopicMap = new Map(subtopics.map(s => [s.id, s]))
@@ -173,6 +175,14 @@ export function MasteryDashboard({ userId }: { userId: string }) {
         // Abandoned mid-learning
         result.resumeCount++
         continue
+      }
+      
+      // Check if they reviewed it TODAY
+      if (progress.last_reviewed) {
+        const reviewedString = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kuala_Lumpur' }).format(new Date(progress.last_reviewed))
+        if (reviewedString === todayString && progress.interval > 0) {
+          result.cardsReviewedToday++
+        }
       }
       
       if (progress.next_review <= now) {
@@ -238,6 +248,18 @@ export function MasteryDashboard({ userId }: { userId: string }) {
     setIsPulling(false)
     setPullDistance(0)
   }
+
+  const [dailyLimit, setDailyLimit] = useState(50)
+  
+  useEffect(() => {
+    // Fetch user's visual limit so they don't get overwhelmed
+    import('@/utils/supabase/client').then(({ createClient }) => {
+      const supabase = createClient()
+      supabase.from('user_settings').select('daily_card_limit').eq('id', userId).maybeSingle().then(({ data }) => {
+        if (data?.daily_card_limit) setDailyLimit(data.daily_card_limit)
+      })
+    })
+  }, [userId])
 
   return (
     <div 
@@ -329,8 +351,8 @@ export function MasteryDashboard({ userId }: { userId: string }) {
                 Study below to unlock
               </span>
             ) : (
-              <span className={`text-sm font-bold px-3 py-1 rounded-full ${dailyDueCount === 0 ? 'bg-green-500/20 text-green-400' : 'bg-[#ff9500]/20 text-[#ff9500]'}`}>
-                {dailyDueCount === 0 ? `🎉 Replenishes in ${timeUntilRestock}` : `${dailyDueCount} Cards Due`}
+              <span className={`text-sm font-bold px-3 py-1 rounded-full ${Math.min(dailyDueCount, Math.max(0, dailyLimit - cardsReviewedToday)) === 0 ? 'bg-green-500/20 text-green-400' : 'bg-[#ff9500]/20 text-[#ff9500]'}`}>
+                {Math.min(dailyDueCount, Math.max(0, dailyLimit - cardsReviewedToday)) === 0 ? `🎉 Replenishes in ${timeUntilRestock}` : `${Math.min(dailyDueCount, Math.max(0, dailyLimit - cardsReviewedToday))} Cards Due`}
               </span>
             )}
           </div>
@@ -351,7 +373,7 @@ export function MasteryDashboard({ userId }: { userId: string }) {
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="bg-[#ff9500]/20 text-[#ff9500] px-3 py-1 rounded-full text-sm">
-                    {count} Due
+                    {Math.min(count, Math.max(0, dailyLimit - cardsReviewedToday))} Due
                   </span>
                 </div>
               </button>

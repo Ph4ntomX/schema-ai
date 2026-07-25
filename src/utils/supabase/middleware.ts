@@ -28,13 +28,10 @@ export async function updateSession(request: NextRequest) {
   )
 
   try {
-    let { data: { user }, error } = await supabase.auth.getUser()
-    
-    // If getUser fails (e.g., when offline), gracefully fallback to checking the local session cookie
-    if (error || !user) {
-      const { data: { session } } = await supabase.auth.getSession()
-      user = session?.user || null
-    }
+    // CRITICAL PERFORMANCE FIX: Use getSession() instead of getUser() in middleware.
+    // getSession() decodes the JWT locally without making a 250ms blocking network request to the Supabase Auth server.
+    const { data: { session } } = await supabase.auth.getSession()
+    const user = session?.user || null
 
     const isAuthRoute = request.nextUrl.pathname.startsWith('/login') || request.nextUrl.pathname.startsWith('/auth')
     const isCronRoute = request.nextUrl.pathname.startsWith('/api/cron')

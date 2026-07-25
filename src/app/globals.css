@@ -18,6 +18,7 @@ body {
   font-family: var(--font-sans), sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  overscroll-behavior-y: none; /* CRITICAL: Disables native browser pull-to-refresh! */
 }
 
 button {

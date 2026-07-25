@@ -10,9 +10,10 @@ import { queueAction } from '@/hooks/useSync'
 interface FlashcardReviewerProps {
   initialQueue: any[]
   onComplete?: () => void
+  title?: string
 }
 
-export function FlashcardReviewer({ initialQueue, onComplete }: FlashcardReviewerProps) {
+export function FlashcardReviewer({ initialQueue, onComplete, title = 'Mastery Queue' }: FlashcardReviewerProps) {
   const router = useRouter()
   const [queue, setQueue] = useState([...initialQueue])
   const [currentIndex, setCurrentIndex] = useState(0)
@@ -169,7 +170,7 @@ export function FlashcardReviewer({ initialQueue, onComplete }: FlashcardReviewe
           <ChevronLeft className="w-5 h-5" />
         </button>
         <div className="text-center">
-          <h2 className="text-sm font-bold text-white uppercase tracking-wider">Mastery Queue</h2>
+          <h2 className="text-sm font-bold text-white uppercase tracking-wider">{title}</h2>
           <p className="text-xs text-[#a1a1aa] font-medium">{currentIndex + 1} / {queue.length}</p>
         </div>
         <div className="w-10 h-10" />

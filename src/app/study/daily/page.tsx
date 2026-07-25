@@ -21,7 +21,7 @@ function DailyDeckContent() {
     async function loadSession() {
       // 1. Fetch user settings for limits
       let subjectsGoal = 2
-      let cardsPerSubject = 20
+      let dailyLimit = 50
       let userId = 'default'
       
       try {
@@ -31,7 +31,7 @@ function DailyDeckContent() {
           userId = user.id
           const { data } = await supabase.from('user_settings').select('daily_card_limit, daily_subjects_goal').eq('id', user.id).maybeSingle()
           if (data) {
-            if (data.daily_card_limit) cardsPerSubject = data.daily_card_limit
+            if (data.daily_card_limit) dailyLimit = data.daily_card_limit
             if (data.daily_subjects_goal) subjectsGoal = data.daily_subjects_goal
           }
         }
@@ -84,7 +84,20 @@ function DailyDeckContent() {
       const seedHash = hashString(`${userId}-${dateKey}`)
       const seededRng = getSeededRandom(seedHash)
 
-      // Collect cards
+      // Calculate how many cards they have already studied today!
+      const todayString = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kuala_Lumpur' }).format(new Date())
+      let cardsReviewedToday = 0
+      for (const p of allProgress) {
+        if (!p.last_reviewed) continue
+        const reviewedString = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kuala_Lumpur' }).format(new Date(p.last_reviewed))
+        if (reviewedString === todayString && p.interval > 0) {
+          cardsReviewedToday++
+        }
+      }
+
+      // Strict global daily allowance
+      const remainingAllowance = Math.max(0, dailyLimit - cardsReviewedToday)
+
       let finalQueue: any[] = []
       
       // We process only the target subject if provided, else we pick N subjects
@@ -96,10 +109,25 @@ function DailyDeckContent() {
       }
       
       for (const subj of selectedSubjects) {
+        if (finalQueue.length >= remainingAllowance) break
+        
         const cards = subjectGroups[subj]
         if (!cards) continue
-        cards.sort(() => seededRng() - 0.5) // deterministic shuffle within subject
-        finalQueue.push(...cards.slice(0, cardsPerSubject))
+        
+        // SORT BY EASE FACTOR (Ascending: Hardest cards first!)
+        // If ease_factors are identical, fallback to deterministic shuffle
+        cards.sort((a, b) => {
+          if (a.progress.ease_factor !== b.progress.ease_factor) {
+            return a.progress.ease_factor - b.progress.ease_factor
+          }
+          return seededRng() - 0.5
+        })
+        
+        // Take cards fairly from this subject without exceeding global limit
+        const cardsToTake = Math.min(cards.length, remainingAllowance - finalQueue.length)
+        if (cardsToTake > 0) {
+          finalQueue.push(...cards.slice(0, cardsToTake))
+        }
       }
 
       setSessionQueue(finalQueue)
@@ -142,6 +170,7 @@ function DailyDeckContent() {
       <FlashcardReviewer 
         initialQueue={sessionQueue}
         onComplete={handleComplete} 
+        title="Daily Deck"
       />
     </div>
   )
