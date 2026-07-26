@@ -55,13 +55,18 @@ export default function SettingsPage() {
         const { data: { user } } = await supabase.auth.getUser()
         
         if (user) {
-          // Check if subscription already exists to avoid duplicate errors
+          // Fetch all existing subscriptions to check if THIS specific device is already registered
           const { data: existing } = await supabase
             .from('push_subscriptions')
-            .select('id')
+            .select('id, subscription')
             .eq('user_id', user.id)
             
-          if (!existing || existing.length === 0) {
+          // Check if this exact endpoint is already saved
+          const isAlreadyRegistered = existing?.some(
+            (sub) => (sub.subscription as any)?.endpoint === subscription.endpoint
+          )
+            
+          if (!isAlreadyRegistered) {
             const { error } = await supabase
               .from('push_subscriptions')
               .insert({

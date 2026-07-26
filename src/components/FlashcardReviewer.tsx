@@ -23,10 +23,30 @@ export function FlashcardReviewer({ initialQueue, onComplete, title = 'Mastery Q
   // To avoid hitting the DB for the user id repeatedly
   const [userId, setUserId] = useState<string>('')
   useEffect(() => {
-    // We just grab the first available active subtopic's user_id, since the local db is for one user
-    db.user_active_subtopics.limit(1).toArray().then(arr => {
-      if (arr.length > 0) setUserId(arr[0].user_id)
-    })
+    async function fetchUser() {
+      // 1. Try to get it from existing card progress (most reliable for daily deck)
+      const progress = await db.user_card_progress.limit(1).toArray()
+      if (progress.length > 0) {
+        setUserId(progress[0].user_id)
+        return
+      }
+      
+      // 2. Fallback to active subtopics
+      const subtopics = await db.user_active_subtopics.limit(1).toArray()
+      if (subtopics.length > 0) {
+        setUserId(subtopics[0].user_id)
+        return
+      }
+
+      // 3. Absolute fallback: directly ask the Supabase client
+      const { createClient } = await import('@/utils/supabase/client')
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        setUserId(user.id)
+      }
+    }
+    fetchUser()
   }, [])
 
   const isFinished = currentIndex >= queue.length
@@ -92,9 +112,14 @@ export function FlashcardReviewer({ initialQueue, onComplete, title = 'Mastery Q
       last_reviewed: new Date().toISOString()
     }
 
+    const finalUserId = userId || currentCard.progress?.user_id
+    
     // Update Dexie Progress immediately
-    if (userId) {
-      await db.user_card_progress.put(newProgress)
+    if (finalUserId) {
+      await db.user_card_progress.put({
+        ...newProgress,
+        user_id: finalUserId
+      })
       
       // Queue offline sync action for Supabase
       await queueAction('REVIEW_CARD', {
@@ -102,6 +127,8 @@ export function FlashcardReviewer({ initialQueue, onComplete, title = 'Mastery Q
         rating,
         timestamp: new Date().toISOString()
       })
+    } else {
+      console.error("FATAL: Could not resolve user ID to save progress!")
     }
 
     // Dynamic Re-queueing: If "wrong", push it to the END of the active session queue

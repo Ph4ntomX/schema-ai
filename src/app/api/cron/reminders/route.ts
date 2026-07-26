@@ -51,7 +51,7 @@ export async function GET(request: Request) {
     // 2. Fetch users who haven't studied today
     const { data: users, error: userError } = await supabase
       .from('user_settings')
-      .select('id, current_streak, last_study_date')
+      .select('id, current_streak, last_study_date, daily_card_limit')
       
     if (userError) throw userError
     if (!users || users.length === 0) return NextResponse.json({ success: true, message: 'No users found' })
@@ -63,6 +63,18 @@ export async function GET(request: Request) {
     // Process in batches (in a real production app you'd want to parallelize this more)
     for (const user of lazyUsers) {
       // 3. Mathematically count how many cards they have due right now
+      // First, find out how many they reviewed today (Malaysia Time)
+      const mytMidnight = `${mytDate}T00:00:00+08:00`
+      const { count: reviewedToday } = await supabase
+        .from('user_card_progress')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .gte('last_reviewed', mytMidnight)
+        .gt('interval', 0)
+        
+      const cardsReviewedToday = reviewedToday || 0
+      const dailyLimit = user.daily_card_limit || 50
+
       const { count: dueCount, error: countError } = await supabase
         .from('user_card_progress')
         .select('*', { count: 'exact', head: true })
@@ -70,17 +82,19 @@ export async function GET(request: Request) {
         .lte('next_review', now)
         .gt('interval', 0) // Ignore abandoned learning cards
 
-      // If they have no cards due, don't bother them!
-      if (!dueCount || dueCount === 0 || countError) continue
+      const actualDue = Math.min(dueCount || 0, Math.max(0, dailyLimit - cardsReviewedToday))
+
+      // If they have no cards due under the daily cap, don't bother them!
+      if (actualDue === 0 || countError) continue
 
       // 4. Construct the dynamic string based on their streak!
       let bodyText = ""
       const streak = user.current_streak || 0
       
       if (streak > 0) {
-        bodyText = `You still have ${dueCount} flashcards due! Complete them before your ${streak}-day streak expires!`
+        bodyText = `You still have ${actualDue} flashcards due! Complete them before your ${streak}-day streak expires!`
       } else {
-        bodyText = `You still have ${dueCount} flashcards due! Complete them to activate your streak!`
+        bodyText = `You still have ${actualDue} flashcards due! Complete them to activate your streak!`
       }
 
       const payload = JSON.stringify({
@@ -92,7 +106,7 @@ export async function GET(request: Request) {
       // 5. Fetch their devices and send
       const { data: subs } = await supabase
         .from('push_subscriptions')
-        .select('subscription')
+        .select('id, subscription')
         .eq('user_id', user.id)
 
       if (subs && subs.length > 0) {
@@ -102,12 +116,12 @@ export async function GET(request: Request) {
             await webpush.sendNotification(sub.subscription, payload)
             notificationsSent++
           } catch (pushErr: any) {
-            // If the subscription is no longer valid (e.g. user revoked permissions), delete it
+            // If the subscription is no longer valid (e.g. user revoked permissions on this specific device), delete it
             if (pushErr.statusCode === 410 || pushErr.statusCode === 404) {
               await supabase
                 .from('push_subscriptions')
                 .delete()
-                .eq('user_id', user.id) // Or use a unique ID if you have one
+                .eq('id', sub.id) // ONLY delete the dead device, not all devices!
             }
           }
         }
