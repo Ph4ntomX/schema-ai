@@ -43,13 +43,17 @@ export function useSync() {
     }
 
     window.addEventListener('online', handleOnline)
+    window.addEventListener('force_sync', handleOnline)
 
     // Attempt to sync initially if we're already online
     if (typeof window !== 'undefined' && window.navigator.onLine) {
       syncOfflineData()
     }
 
-    return () => window.removeEventListener('online', handleOnline)
+    return () => {
+      window.removeEventListener('online', handleOnline)
+      window.removeEventListener('force_sync', handleOnline)
+    }
   }, [syncOfflineData])
 
   return {
@@ -68,7 +72,7 @@ export async function queueAction(action: string, payload: any) {
     
     // Attempt sync immediately if online
     if (typeof window !== 'undefined' && window.navigator.onLine) {
-      window.dispatchEvent(new Event('online'))
+      window.dispatchEvent(new Event('force_sync'))
     }
   } catch (error) {
     console.error('Failed to queue action:', error)
