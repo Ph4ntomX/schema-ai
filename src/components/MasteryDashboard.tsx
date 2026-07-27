@@ -138,6 +138,7 @@ export function MasteryDashboard({ userId }: { userId: string }) {
       if (!map[subjKey]) map[subjKey] = []
       
       const tSubs = subtopics.filter(s => s.topic_id === t.id)
+      tSubs.sort((a, b) => a.title.localeCompare(b.title, undefined, { numeric: true, sensitivity: 'base' }))
       map[subjKey].push({ ...t, subtopics: tSubs })
     })
 
@@ -186,7 +187,8 @@ export function MasteryDashboard({ userId }: { userId: string }) {
       // Check if they reviewed it TODAY
       if (progress.last_reviewed) {
         const reviewedString = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kuala_Lumpur' }).format(new Date(progress.last_reviewed))
-        if (reviewedString === todayString && progress.interval > 0) {
+        // ONLY count true spaced repetition reviews (repetitions > 1), ignore brand new cards (repetitions <= 1)
+        if (reviewedString === todayString && progress.interval > 0 && progress.repetitions > 1) {
           result.cardsReviewedToday++
         }
       }

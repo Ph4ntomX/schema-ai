@@ -49,7 +49,7 @@ export function AuthForm() {
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-5">
           <div className="flex flex-col gap-5">
-            <div className="relative group">
+            <div className="relative group" suppressHydrationWarning>
               <input
                 type="email"
                 name="email"
@@ -60,7 +60,7 @@ export function AuthForm() {
               />
             </div>
             
-            <div className="relative group">
+            <div className="relative group" suppressHydrationWarning>
               <input
                 type="password"
                 name="password"

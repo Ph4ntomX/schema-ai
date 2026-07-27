@@ -71,6 +71,7 @@ export async function GET(request: Request) {
         .eq('user_id', user.id)
         .gte('last_reviewed', mytMidnight)
         .gt('interval', 0)
+        .gt('repetitions', 1) // EXCLUDE brand new cards!
         
       const cardsReviewedToday = reviewedToday || 0
       const dailyLimit = user.daily_card_limit || 50

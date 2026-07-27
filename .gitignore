@@ -43,3 +43,5 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 resize.ps1
+scripts/normalize_topics.js
+scripts/seed.mjs

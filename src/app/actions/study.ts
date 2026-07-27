@@ -13,7 +13,19 @@ export async function syncMasteryData() {
   try {
     const { data: topics } = await supabase.from('topics').select('*')
     const { data: subtopics } = await supabase.from('subtopics').select('*')
-    const { data: flashcards } = await supabase.from('flashcards').select('*')
+    
+    let flashcards: any[] = []
+    let from = 0
+    while(true) {
+      const { data } = await supabase.from('flashcards').select('*').range(from, from + 999)
+      if (!data || data.length === 0) break
+      flashcards = flashcards.concat(data)
+      if (data.length < 1000) break
+      from += 1000
+    }
+    
+    if (topics) topics.sort((a, b) => a.title.localeCompare(b.title, undefined, { numeric: true, sensitivity: 'base' }))
+    if (subtopics) subtopics.sort((a, b) => a.title.localeCompare(b.title, undefined, { numeric: true, sensitivity: 'base' }))
     
     const { data: cardProgress } = await supabase
       .from('user_card_progress')

@@ -51,27 +51,46 @@ function DailyDeckContent() {
 
       const now = new Date().toISOString()
       
-      // 3. Group by Subject Name (from Topics)
+      // 3. Group by Subject Name (from Topics) and track rolling window metrics
       const subjectGroups: Record<string, any[]> = {}
+      const subjectStats: Record<string, { lastStudied: number, dueEaseSum: number, dueCount: number }> = {}
       
       for (const card of allCards) {
-        const p = progressMap.get(card.id)
-        if (!p) continue // Daily deck only contains cards they have seen in the Mastery Library at least once!
-        if (p.interval === 0 && p.repetitions === 0) continue // Skip abandoned NEW learning cards only! (Lapsed daily deck cards should stay in daily deck)
-        if (p.next_review > now) continue // Skip future cards entirely
-        
         const subtopic = subtopicMap.get(card.subtopic_id)
         if (!subtopic) continue
         const topic = topicMap.get(subtopic.topic_id)
         if (!topic) continue
         
         const subjectName = topic.subject
+
+        if (!subjectStats[subjectName]) {
+          subjectStats[subjectName] = { lastStudied: 0, dueEaseSum: 0, dueCount: 0 }
+        }
+
+        const p = progressMap.get(card.id)
+        
+        // Track the absolute latest study time for this subject (for rolling window priority)
+        if (p && p.last_reviewed) {
+          const reviewedTime = new Date(p.last_reviewed).getTime()
+          if (reviewedTime > subjectStats[subjectName].lastStudied) {
+            subjectStats[subjectName].lastStudied = reviewedTime
+          }
+        }
+
+        if (!p) continue // Daily deck only contains cards they have seen in the Mastery Library at least once!
+        if (p.interval === 0 && p.repetitions === 0) continue // Skip abandoned NEW learning cards only! (Lapsed daily deck cards should stay in daily deck)
+        if (p.next_review > now) continue // Skip future cards entirely
+        
         if (targetSubject && subjectName !== targetSubject) continue // Filter if a specific subject was clicked
 
         if (!subjectGroups[subjectName]) {
           subjectGroups[subjectName] = []
         }
         subjectGroups[subjectName].push({ ...card, progress: p })
+        
+        // Calculate Average Ease Factor (AEF) for tiebreakers
+        subjectStats[subjectName].dueEaseSum += p.ease_factor
+        subjectStats[subjectName].dueCount += 1
       }
 
       // 4. Daily Deterministic Sort (Malaysia Time)
@@ -90,7 +109,7 @@ function DailyDeckContent() {
       for (const p of allProgress) {
         if (!p.last_reviewed) continue
         const reviewedString = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kuala_Lumpur' }).format(new Date(p.last_reviewed))
-        if (reviewedString === todayString && p.interval > 0) {
+        if (reviewedString === todayString && p.interval > 0 && p.repetitions > 1) {
           cardsReviewedToday++
         }
       }
@@ -100,11 +119,25 @@ function DailyDeckContent() {
 
       let finalQueue: any[] = []
       
-      // We process only the target subject if provided, else we pick N subjects
+      // We process only the target subject if provided, else we pick N subjects using Rolling Window + AEF
       let selectedSubjects = targetSubject ? [targetSubject] : Object.keys(subjectGroups)
       
       if (!targetSubject) {
-        selectedSubjects.sort(() => seededRng() - 0.5)
+        selectedSubjects.sort((a, b) => {
+          const statsA = subjectStats[a]
+          const statsB = subjectStats[b]
+          
+          // Primary: Oldest last_studied first (Round Robin)
+          if (statsA.lastStudied !== statsB.lastStudied) {
+            return statsA.lastStudied - statsB.lastStudied
+          }
+          
+          // Tiebreaker: Lowest Average Ease Factor first (Hardest subjects)
+          const aefA = statsA.dueCount > 0 ? statsA.dueEaseSum / statsA.dueCount : 999
+          const aefB = statsB.dueCount > 0 ? statsB.dueEaseSum / statsB.dueCount : 999
+          
+          return aefA - aefB
+        })
         selectedSubjects = selectedSubjects.slice(0, subjectsGoal)
       }
       
