@@ -132,9 +132,13 @@ export function FlashcardReviewer({ initialQueue, onComplete, title = 'Mastery Q
     }
 
     if (rating === 'right') {
-      // Import dynamically to avoid SSR issues
-      import('canvas-confetti').then((confetti) => {
-        confetti.default({
+      import('canvas-confetti').then((confettiModule) => {
+        const confetti = confettiModule.default
+        // Create an optimized worker instance to avoid blocking the main thread and triggering HMR timeouts
+        if (!(window as any).__confettiInstance) {
+          (window as any).__confettiInstance = confetti.create(undefined, { useWorker: true, resize: true })
+        }
+        (window as any).__confettiInstance({
           particleCount: 50,
           spread: 60,
           origin: { y: 0.8 },
