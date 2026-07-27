@@ -131,14 +131,7 @@ export function FlashcardReviewer({ initialQueue, onComplete, title = 'Mastery Q
       console.error("FATAL: Could not resolve user ID to save progress!")
     }
 
-    // Dynamic Re-queueing: If "wrong", push it to the END of the active session queue
-    if (rating === 'wrong') {
-      setQueue(prev => {
-        const newQ = [...prev]
-        newQ.push({ ...currentCard, progress: newProgress })
-        return newQ
-      })
-    } else if (rating === 'right') {
+    if (rating === 'right') {
       // Import dynamically to avoid SSR issues
       import('canvas-confetti').then((confetti) => {
         confetti.default({
@@ -150,9 +143,16 @@ export function FlashcardReviewer({ initialQueue, onComplete, title = 'Mastery Q
       })
     }
 
-    // Move to next card
+    // Move to next card synchronously
     setTimeout(() => {
       setIsFlipped(false)
+      if (rating === 'wrong') {
+        setQueue(prev => {
+          const newQ = [...prev]
+          newQ.push({ ...currentCard, progress: newProgress })
+          return newQ
+        })
+      }
       setCurrentIndex(prev => prev + 1)
     }, 200) // Fast game-like response
   }
