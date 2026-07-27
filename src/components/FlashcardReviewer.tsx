@@ -201,7 +201,7 @@ export function FlashcardReviewer({ initialQueue, onComplete, title = 'Mastery Q
         </button>
         <div className="text-center">
           <h2 className="text-sm font-bold text-white uppercase tracking-wider">{title}</h2>
-          <p className="text-xs text-[#a1a1aa] font-medium">{currentIndex + 1} / {queue.length}</p>
+          <p className="text-xs text-[#a1a1aa] font-medium">{queue.length - currentIndex} cards remaining</p>
         </div>
         <div className="w-10 h-10" />
       </header>

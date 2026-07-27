@@ -50,6 +50,7 @@ function DailyDeckContent() {
       const topicMap = new Map(allTopics.map(t => [t.id, t]))
 
       const now = new Date().toISOString()
+      const todayString = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kuala_Lumpur' }).format(new Date())
       
       // 3. Group by Subject Name (from Topics) and track rolling window metrics
       const subjectGroups: Record<string, any[]> = {}
@@ -78,8 +79,14 @@ function DailyDeckContent() {
         }
 
         if (!p) continue // Daily deck only contains cards they have seen in the Mastery Library at least once!
-        if (p.interval === 0 && p.repetitions === 0) continue // Skip abandoned NEW learning cards only! (Lapsed daily deck cards should stay in daily deck)
+        if (p.interval === 0 && p.repetitions === 0) continue // Skip abandoned NEW learning cards only!
         if (p.next_review > now) continue // Skip future cards entirely
+        
+        // Strictly ignore cards that were BRAND NEW today so they don't artificially inflate the Daily Deck
+        if (p.last_reviewed) {
+          const reviewedString = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kuala_Lumpur' }).format(new Date(p.last_reviewed))
+          if (reviewedString === todayString && p.repetitions <= 1) continue
+        }
         
         if (targetSubject && subjectName !== targetSubject) continue // Filter if a specific subject was clicked
 
@@ -104,7 +111,6 @@ function DailyDeckContent() {
       const seededRng = getSeededRandom(seedHash)
 
       // Calculate how many cards they have already studied today!
-      const todayString = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kuala_Lumpur' }).format(new Date())
       let cardsReviewedToday = 0
       for (const p of allProgress) {
         if (!p.last_reviewed) continue

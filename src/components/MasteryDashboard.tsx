@@ -91,11 +91,14 @@ export function MasteryDashboard({ userId }: { userId: string }) {
         if (!silent) toast.error('Sync failed: ' + res.error)
       } else {
         await db.transaction('rw', db.topics, db.subtopics, db.flashcards, db.user_card_progress, async () => {
+          await db.topics.clear()
+          await db.subtopics.clear()
+          await db.flashcards.clear()
+          await db.user_card_progress.clear()
+
           await db.topics.bulkPut(res.topics || [])
           await db.subtopics.bulkPut(res.subtopics || [])
           await db.flashcards.bulkPut(res.flashcards || [])
-          
-          await db.user_card_progress.clear()
           await db.user_card_progress.bulkPut(res.cardProgress || [])
         })
         if (!silent) toast.success('Database Synced')
@@ -528,9 +531,8 @@ export function MasteryDashboard({ userId }: { userId: string }) {
                                       <div className="pl-16 pr-6 py-4 flex flex-col gap-1">
                                         {topic.subtopics.map((st: any) => {
                                           // Check if there's any progress for this subtopic to show the Reset button
-                                          const hasProgress = cardProgress?.some(p => 
-                                            flashcards?.find(c => c.id === p.card_id)?.subtopic_id === st.id
-                                          )
+                                          const subCards = flashcards?.filter(c => c.subtopic_id === st.id) || []
+                                          const hasProgress = cardProgress?.some(p => subCards.some(c => c.id === p.card_id))
 
                                           return (
                                             <div key={st.id} className="flex items-center justify-between py-2 group">
@@ -543,6 +545,9 @@ export function MasteryDashboard({ userId }: { userId: string }) {
                                                 />
                                                 <span className="text-sm text-white font-medium cursor-pointer" onClick={() => toggleSelection(st.id)}>
                                                   {st.title}
+                                                </span>
+                                                <span className="text-[10px] font-bold tracking-widest text-[#71717a] ml-2 px-2 py-0.5 bg-[#262626] rounded-full uppercase">
+                                                  {subCards.length} cards
                                                 </span>
                                               </div>
                                               
