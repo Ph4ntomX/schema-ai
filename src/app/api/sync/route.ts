@@ -52,8 +52,7 @@ export async function POST(request: Request) {
           interval = 1
         } else {
           if (repetitions === 0) interval = 1
-          else if (repetitions === 1) interval = 1
-          else if (repetitions === 2) interval = 6
+          else if (repetitions === 1) interval = 6
           else interval = Math.max(1, Math.round(interval * ease_factor))
         }
         repetitions += 1
