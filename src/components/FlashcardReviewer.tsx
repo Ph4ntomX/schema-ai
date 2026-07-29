@@ -86,7 +86,7 @@ export function FlashcardReviewer({ initialQueue, onComplete, title = 'Mastery Q
       } else {
         if (repetitions === 0) interval = 1
         else if (repetitions === 1) interval = 6
-        else interval = Math.max(1, Math.round(interval * ease_factor))
+        else interval = Math.min(21, Math.max(1, Math.round(interval * ease_factor))) // Capped at 21 days for SPM cram
       }
       repetitions += 1
     }

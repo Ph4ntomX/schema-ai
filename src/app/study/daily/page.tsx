@@ -46,6 +46,7 @@ function DailyDeckContent() {
       const allProgress = await db.user_card_progress.toArray()
       
       const progressMap = new Map(allProgress.map(p => [p.card_id, p]))
+      const cardMap = new Map(allCards.map(c => [c.id, c]))
       const subtopicMap = new Map(allSubtopics.map(s => [s.id, s]))
       const topicMap = new Map(allTopics.map(t => [t.id, t]))
 
@@ -110,18 +111,23 @@ function DailyDeckContent() {
       const seedHash = hashString(`${userId}-${dateKey}`)
       const seededRng = getSeededRandom(seedHash)
 
-      // Calculate how many cards they have already studied today!
-      let cardsReviewedToday = 0
+      // Calculate how many cards they have already studied today PER SUBJECT!
+      let cardsReviewedTodayBySubject: Record<string, number> = {}
       for (const p of allProgress) {
         if (!p.last_reviewed) continue
         const reviewedString = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kuala_Lumpur' }).format(new Date(p.last_reviewed))
         if (reviewedString === todayString && p.interval > 0 && p.repetitions > 1) {
-          cardsReviewedToday++
+          const card = cardMap.get(p.card_id)
+          if (!card) continue
+          const subtopic = subtopicMap.get(card.subtopic_id)
+          if (!subtopic) continue
+          const topic = topicMap.get(subtopic.topic_id)
+          if (!topic) continue
+          
+          const subjectName = topic.subject
+          cardsReviewedTodayBySubject[subjectName] = (cardsReviewedTodayBySubject[subjectName] || 0) + 1
         }
       }
-
-      // Strict global daily allowance
-      const remainingAllowance = Math.max(0, dailyLimit - cardsReviewedToday)
 
       let finalQueue: any[] = []
       
@@ -148,7 +154,8 @@ function DailyDeckContent() {
       }
       
       for (const subj of selectedSubjects) {
-        if (finalQueue.length >= remainingAllowance) break
+        const remainingAllowanceForSubj = Math.max(0, dailyLimit - (cardsReviewedTodayBySubject[subj] || 0))
+        if (remainingAllowanceForSubj <= 0) continue
         
         const cards = subjectGroups[subj]
         if (!cards) continue
@@ -162,8 +169,8 @@ function DailyDeckContent() {
           return seededRng() - 0.5
         })
         
-        // Take cards fairly from this subject without exceeding global limit
-        const cardsToTake = Math.min(cards.length, remainingAllowance - finalQueue.length)
+        // Take cards from this subject up to its specific daily limit
+        const cardsToTake = Math.min(cards.length, remainingAllowanceForSubj)
         if (cardsToTake > 0) {
           finalQueue.push(...cards.slice(0, cardsToTake))
         }
