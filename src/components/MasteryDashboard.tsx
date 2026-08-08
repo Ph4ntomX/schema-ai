@@ -154,13 +154,13 @@ export function MasteryDashboard({ userId }: { userId: string }) {
   }, [topics, subtopics])
 
   // Categorize Progress
-  const { dailyDueBySubject, resumeCount, dailyDueCount, hasStartedLearning, cardsReviewedToday } = useMemo(() => {
+  const { dailyDueBySubject, resumeCount, dailyDueCount, hasStartedLearning, cardsReviewedTodayBySubject } = useMemo(() => {
     const result = {
       dailyDueBySubject: {} as Record<string, number>,
       resumeCount: 0,
-      dailyDueCount: 0,
+      dailyDueCount: 0, // This will store the UNRESTRICTED total due
       hasStartedLearning: false,
-      cardsReviewedToday: 0
+      cardsReviewedTodayBySubject: {} as Record<string, number>
     }
 
     if (!flashcards || !cardProgress || !subtopics || !topics) return result
@@ -192,7 +192,16 @@ export function MasteryDashboard({ userId }: { userId: string }) {
         const reviewedString = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kuala_Lumpur' }).format(new Date(progress.last_reviewed))
         // ONLY count true spaced repetition reviews (repetitions > 1), ignore brand new cards (repetitions <= 1)
         if (reviewedString === todayString && progress.interval > 0 && progress.repetitions > 1) {
-          result.cardsReviewedToday++
+          const card = flashcardMap.get(progress.card_id)
+          if (card) {
+            const subtopic = subtopicMap.get(card.subtopic_id)
+            if (subtopic) {
+              const topic = topicMap.get(subtopic.topic_id)
+              if (topic) {
+                result.cardsReviewedTodayBySubject[topic.subject] = (result.cardsReviewedTodayBySubject[topic.subject] || 0) + 1
+              }
+            }
+          }
         }
       }
       
@@ -261,16 +270,28 @@ export function MasteryDashboard({ userId }: { userId: string }) {
   }
 
   const [dailyLimit, setDailyLimit] = useState(50)
+  const [subjectsGoal, setSubjectsGoal] = useState(2)
   
   useEffect(() => {
     // Fetch user's visual limit so they don't get overwhelmed
     import('@/utils/supabase/client').then(({ createClient }) => {
       const supabase = createClient()
-      supabase.from('user_settings').select('daily_card_limit').eq('id', userId).maybeSingle().then(({ data }) => {
+      supabase.from('user_settings').select('daily_card_limit, daily_subjects_goal').eq('id', userId).maybeSingle().then(({ data }) => {
         if (data?.daily_card_limit) setDailyLimit(data.daily_card_limit)
+        if (data?.daily_subjects_goal) setSubjectsGoal(data.daily_subjects_goal)
       })
     })
   }, [userId])
+  
+  // SPM Countdown logic
+  const spmDate = new Date('2026-11-00T00:00:00+08:00')
+  const now = new Date()
+  const daysUntilSpm = Math.ceil((spmDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+
+  // Calculate total restricted due across all subjects
+  const realTotalDue = Object.entries(dailyDueBySubject).reduce((total, [subject, count]) => {
+    return total + Math.min(count, Math.max(0, dailyLimit - (cardsReviewedTodayBySubject[subject] || 0)))
+  }, 0)
 
   return (
     <div 
@@ -295,7 +316,22 @@ export function MasteryDashboard({ userId }: { userId: string }) {
           />
         </div>
       </div>
-
+      
+      {/* SPM COUNTDOWN TIMER */}
+      {daysUntilSpm > 0 && (
+        <section className="bg-gradient-to-r from-orange-500/10 to-[#171717] border border-orange-500/20 rounded-3xl p-6 flex items-center justify-between shadow-xl relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-orange-500/10 rounded-full blur-[80px] pointer-events-none" />
+          <div className="flex flex-col gap-1 relative z-10">
+            <h2 className="text-sm font-bold text-orange-400 uppercase tracking-widest flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
+              SPM 2026 Countdown
+            </h2>
+            <p className="text-3xl font-black text-white tracking-tight mt-1">
+              {daysUntilSpm} Days Remaining
+            </p>
+          </div>
+        </section>
+      )}
 
       {/* PUSH NOTIFICATION PROMPT */}
       {showPushPrompt && (
@@ -366,8 +402,8 @@ export function MasteryDashboard({ userId }: { userId: string }) {
                 <Loader2 className="w-3 h-3 animate-spin" /> Syncing...
               </span>
             ) : (
-              <span className={`text-sm font-bold px-3 py-1 rounded-full ${Math.min(dailyDueCount, Math.max(0, dailyLimit - cardsReviewedToday)) === 0 ? 'bg-green-500/20 text-green-400' : 'bg-[#ff9500]/20 text-[#ff9500]'}`}>
-                {Math.min(dailyDueCount, Math.max(0, dailyLimit - cardsReviewedToday)) === 0 ? `🎉 Replenishes in ${timeUntilRestock}` : `${Math.min(dailyDueCount, Math.max(0, dailyLimit - cardsReviewedToday))} Cards Due`}
+              <span className={`text-sm font-bold px-3 py-1 rounded-full ${realTotalDue === 0 ? 'bg-green-500/20 text-green-400' : 'bg-[#ff9500]/20 text-[#ff9500]'}`}>
+                {realTotalDue === 0 ? `🎉 Replenishes in ${timeUntilRestock}` : `${realTotalDue} Cards Due`}
               </span>
             )}
           </div>
@@ -376,7 +412,10 @@ export function MasteryDashboard({ userId }: { userId: string }) {
         {/* Dynamic Subject Buttons for Daily Deck */}
         {dailyDueCount > 0 && (
           <div className="relative z-10 flex flex-wrap gap-4 mt-2 border-t border-[#262626] pt-6">
-            {Object.entries(dailyDueBySubject).map(([subject, count]) => (
+            {Object.entries(dailyDueBySubject)
+              .sort((a, b) => b[1] - a[1]) // Sort by highest due count first
+              .slice(0, subjectsGoal)      // Slice to match their daily subjects goal!
+              .map(([subject, count]) => (
               <button 
                 key={subject}
                 onClick={() => router.push(`/study/daily?subject=${encodeURIComponent(subject)}`)}
@@ -393,7 +432,7 @@ export function MasteryDashboard({ userId }: { userId: string }) {
                     </span>
                   ) : (
                     <span className="bg-[#ff9500]/20 text-[#ff9500] px-3 py-1 rounded-full text-sm">
-                      {Math.min(count, Math.max(0, dailyLimit - cardsReviewedToday))} Due
+                      {Math.min(count, Math.max(0, dailyLimit - (cardsReviewedTodayBySubject[subject] || 0)))} Due
                     </span>
                   )}
                 </div>

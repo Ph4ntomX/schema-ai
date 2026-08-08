@@ -2,7 +2,7 @@ import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { logout } from '@/app/login/actions'
-import { LogOut, BookOpen, Settings, Flame } from 'lucide-react'
+import { LogOut, BookOpen, Settings, Flame, Timer } from 'lucide-react'
 import { MasteryDashboard } from '@/components/MasteryDashboard'
 
 export default async function FlashcardsDashboardPage() {
@@ -63,6 +63,9 @@ export default async function FlashcardsDashboardPage() {
               {currentStreak} Day Streak
             </span>
           </div>
+          <Link href="/study/timers" className="flex items-center gap-2 text-[#a1a1aa] hover:text-white transition-colors text-sm font-medium">
+            <Timer className="w-5 h-5" /> <span className="hidden sm:inline">Timers</span>
+          </Link>
           <Link href="/settings" className="flex items-center gap-2 text-[#a1a1aa] hover:text-white transition-colors text-sm font-medium">
             <Settings className="w-5 h-5" /> <span className="hidden sm:inline">Settings</span>
           </Link>
