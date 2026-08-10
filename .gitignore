@@ -45,3 +45,6 @@ next-env.d.ts
 resize.ps1
 scripts/normalize_topics.js
 scripts/seed.mjs
+scripts/amend.mjs
+notes_amend/biology-pandai-form-4.json
+notes_amend/sejarah-pandai-form-5.json
