@@ -284,7 +284,7 @@ export function MasteryDashboard({ userId }: { userId: string }) {
   }, [userId])
   
   // SPM Countdown logic
-  const spmDate = new Date('2026-11-00T00:00:00+08:00')
+  const spmDate = new Date('2026-11-16T00:00:00+08:00')
   const now = new Date()
   const daysUntilSpm = Math.ceil((spmDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
 

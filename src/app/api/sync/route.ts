@@ -65,12 +65,13 @@ export async function POST(request: Request) {
         ease_factor = Math.max(1.3, ease_factor - 0.2)
         interval = 0
       } else if (payload.rating === 'right') {
+        ease_factor = Math.min(3.0, ease_factor + 0.1) // CRITICAL: Must increase ease_factor on server too!
         if (interval === 0) {
           interval = 1
         } else {
           if (repetitions === 0) interval = 1
           else if (repetitions === 1) interval = 6
-          else interval = Math.min(21, Math.max(1, Math.round(interval * ease_factor))) // Capped at 21 days for SPM cram
+          else interval = Math.min(21, Math.max(interval + 1, Math.round(interval * ease_factor))) // Escapes the 1-day black hole
         }
         repetitions += 1
       }

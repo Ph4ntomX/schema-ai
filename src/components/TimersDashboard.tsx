@@ -57,28 +57,32 @@ export function TimersDashboard() {
     }
   }, [activePresetIndex, mode, activePreset.work, phase])
 
+  const lastTickRef = useRef<number>(0)
+
   // Timer loop
   useEffect(() => {
     if (isRunning) {
+      lastTickRef.current = Date.now()
       timerRef.current = setInterval(() => {
-        if (mode === 'pomodoro') {
+        const now = Date.now()
+        const deltaSeconds = Math.round((now - lastTickRef.current) / 1000)
+        
+        if (deltaSeconds < 1) return // Wait for a full second
+        
+        // Advance the tick marker forward exactly by the delta
+        lastTickRef.current = lastTickRef.current + deltaSeconds * 1000
+        
+        if (mode === 'pomodoro' || (mode === 'flowtime' && phase === 'break')) {
           setTimeLeft(prev => {
-            if (prev <= 1) {
+            const next = prev - deltaSeconds
+            if (next <= 0) {
               handlePhaseComplete()
               return 0
             }
-            return prev - 1
+            return next
           })
         } else if (mode === 'flowtime' && phase === 'work') {
-          setFlowtimeElapsed(prev => prev + 1)
-        } else if (mode === 'flowtime' && phase === 'break') {
-          setTimeLeft(prev => {
-            if (prev <= 1) {
-              handlePhaseComplete()
-              return 0
-            }
-            return prev - 1
-          })
+          setFlowtimeElapsed(prev => prev + deltaSeconds)
         }
       }, 1000)
     } else {
@@ -88,6 +92,7 @@ export function TimersDashboard() {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isRunning, mode, phase])
 
   const handlePhaseComplete = () => {
